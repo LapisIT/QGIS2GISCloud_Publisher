@@ -29,6 +29,8 @@ __copyright__ = '(C) 2015 by Spatial Vision'
 
 __revision__ = '$Format:%H$'
 
+import os.path
+
 from PyQt4.QtCore import QSettings
 from qgis.core import QgsVectorFileWriter
 
@@ -38,6 +40,7 @@ from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
 
 import requests
+import zipfile
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """This is an example algorithm that takes a vector layer and
@@ -57,7 +60,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     # calling from the QGIS console.
 
     INPUT_LAYER = 'INPUT_LAYER'
-    API_KEY = 'API_KEY'
+    API_KEY = '62f961b31cbd0bc067cfa6f31a787826'
 
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
@@ -79,7 +82,11 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             False  # Not optional
         ))
 
-        self.addParameter(ParameterString(self.API_KEY, "GISCloud API Key"))
+        # self.addParameter(ParameterString(
+        #     self.API_KEY,
+        #     self.default,
+        #     self.value = "62f961b31cbd0bc067cfa6f31a787826"
+        # ))
 
     def processAlgorithm(self, progress):
         """Here is where the processing itself takes place."""
@@ -89,10 +96,25 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         input_filenames = self.getParameterValue(self.INPUT_LAYER).split(";")
         api_key = self.getParameterValue(self.API_KEY)
 
-        rest_endpoint = "https://api.giscloud.com"
-
         for path in input_filenames:
-            # Upload them to GISCloud
-            pass
+            rest_endpoint = "https://api.giscloud.com/1/"
+            headers = {
+                "API-Version": 1,
+                "API-Key": self.API_KEY,
+            }
+
+            r = requests.get(rest_endpoint + "storage/fs/uploads/my_folder/INPUT_LAYER", headers=headers,verify=False)
+            # r.status_code
+
+
+            storage_url = rest_endpoint + "storage/fs/post_test/my_folder/"
+
+
+            with zipfile.ZipFile(path + ".zip", "w") as z:
+                z.write(path, os.path.basename(path))
+
+            z =  {'file': open(path + ".zip", 'rb')}
+            r = requests.post(storage_url, headers=headers, files=z, verify=False)
+            # r.status_code
 
         # Done - throw an appropriate error on failure
