@@ -29,6 +29,7 @@ __copyright__ = '(C) 2015 by Spatial Vision'
 
 __revision__ = '$Format:%H$'
 
+from glob import glob
 import os.path
 
 from PyQt4.QtCore import QSettings
@@ -36,8 +37,9 @@ from qgis.core import QgsVectorFileWriter
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterMultipleInput, ParameterString
+from processing.core.ProcessingLog import ProcessingLog
 from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector
+from processing.tools import dataobjects, vector, system
 
 import requests
 import zipfile
@@ -60,7 +62,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     # calling from the QGIS console.
 
     INPUT_LAYER = 'INPUT_LAYER'
-    API_KEY = '62f961b31cbd0bc067cfa6f31a787826'
+    API_KEY = 'API_KEY'
+    OUTPUT_FOLDER = 'OUTPUT_FOLDER'
 
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
@@ -82,39 +85,62 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             False  # Not optional
         ))
 
-        # self.addParameter(ParameterString(
-        #     self.API_KEY,
-        #     self.default,
-        #     self.value = "62f961b31cbd0bc067cfa6f31a787826"
-        # ))
+        self.addParameter(ParameterString(
+            self.API_KEY,
+            "GISCloud API Key",
+            default="62f961b31cbd0bc067cfa6f31a787826"
+        ))
+
+        self.addParameter(ParameterString(
+        self.OUTPUT_FOLDER,
+        "GISCloud output folder name",
+        default="Upload"
+        ))
 
     def processAlgorithm(self, progress):
         """Here is where the processing itself takes place."""
 
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
-        input_filenames = self.getParameterValue(self.INPUT_LAYER).split(";")
+        input_filenames = self.getParameterValue(self.INPUT_LAYER).split(",")
+        output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
 
+        rest_endpoint = "https://api.giscloud.com/1/"
+        headers = {
+            "API-Version": 1,
+            "API-Key": api_key,
+        }
+
+        storage_url = rest_endpoint + "storage/fs/" + output_filename
+
         for path in input_filenames:
-            rest_endpoint = "https://api.giscloud.com/1/"
-            headers = {
-                "API-Version": 1,
-                "API-Key": self.API_KEY,
-            }
 
-            r = requests.get(rest_endpoint + "storage/fs/uploads/my_folder/INPUT_LAYER", headers=headers,verify=False)
-            # r.status_code
+            zip_path = system.getTempFilename("zip")
+            with zipfile.ZipFile(zip_path, "w") as z:
+                for p in glob(os.path.splitext(path)[0] + ".*"):
+                    ProcessingLog.addToLog(
+                       ProcessingLog.LOG_INFO,
+                       p
+                    )
+                    z.write(p, os.path.basename(p))
+
+            ProcessingLog.addToLog(
+                ProcessingLog.LOG_INFO,
+                zip_path
+            )
 
 
-            storage_url = rest_endpoint + "storage/fs/post_test/my_folder/"
-
-
-            with zipfile.ZipFile(path + ".zip", "w") as z:
-                z.write(path, os.path.basename(path))
-
-            z =  {'file': open(path + ".zip", 'rb')}
+            z =  {'file': open(zip_path, 'rb')}
             r = requests.post(storage_url, headers=headers, files=z, verify=False)
             # r.status_code
 
-        # Done - throw an appropriate error on failure
+            ProcessingLog.addToLog(
+                ProcessingLog.LOG_INFO,
+                "Uploaded {}".format(path)
+            )
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            "Uploaded all datasets"
+        )
