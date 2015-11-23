@@ -33,10 +33,11 @@ from PyQt4.QtCore import QSettings
 from qgis.core import QgsVectorFileWriter
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterVector
+from processing.core.parameters import ParameterMultipleInput, ParameterString
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector
 
+import requests
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """This is an example algorithm that takes a vector layer and
@@ -55,8 +56,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     # used when calling the algorithm from another algorithm, or when
     # calling from the QGIS console.
 
-    OUTPUT_LAYER = 'OUTPUT_LAYER'
     INPUT_LAYER = 'INPUT_LAYER'
+    API_KEY = 'API_KEY'
 
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
@@ -67,53 +68,31 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         self.name = 'GIS Cloud Uploader'
 
         # The branch of the toolbox under which the algorithm will appear
-        self.group = 'GIS Cloud Uploader'
+        self.group = 'Web'
 
         # We add the input vector layer. It can have any kind of geometry
         # It is a mandatory (not optional) one, hence the False argument
-        self.addParameter(ParameterVector(self.INPUT_LAYER,
-            self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+        self.addParameter(ParameterMultipleInput(
+            self.INPUT_LAYER, # tool parameter to store the input under.
+            self.tr('Vector layers to upload to GISCloud'), # name as it appears in the window
+            ParameterMultipleInput.TYPE_VECTOR_ANY,  # Either raster or vector
+            False  # Not optional
+        ))
 
-        # We add a vector layer as output
-        self.addOutput(OutputVector(self.OUTPUT_LAYER,
-            self.tr('Output layer with selected features')))
+        self.addParameter(ParameterString(self.API_KEY, "GISCloud API Key"))
 
     def processAlgorithm(self, progress):
         """Here is where the processing itself takes place."""
 
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
-        inputFilename = self.getParameterValue(self.INPUT_LAYER)
-        output = self.getOutputValue(self.OUTPUT_LAYER)
+        input_filenames = self.getParameterValue(self.INPUT_LAYER).split(";")
+        api_key = self.getParameterValue(self.API_KEY)
 
-        # Input layers vales are always a string with its location.
-        # That string can be converted into a QGIS object (a
-        # QgsVectorLayer in this case) using the
-        # processing.getObjectFromUri() method.
-        vectorLayer = dataobjects.getObjectFromUri(inputFilename)
+        rest_endpoint = "https://api.giscloud.com"
 
-        # And now we can process
+        for path in input_filenames:
+            # Upload them to GISCloud
+            pass
 
-        # First we create the output layer. The output value entered by
-        # the user is a string containing a filename, so we can use it
-        # directly
-        settings = QSettings()
-        systemEncoding = settings.value('/UI/encoding', 'System')
-        provider = vectorLayer.dataProvider()
-        writer = QgsVectorFileWriter(output, systemEncoding,
-                                     provider.fields(),
-                                     provider.geometryType(), provider.crs())
-
-        # Now we take the features from input layer and add them to the
-        # output. Method features() returns an iterator, considering the
-        # selection that might exist in layer and the configuration that
-        # indicates should algorithm use only selected features or all
-        # of them
-        features = vector.features(vectorLayer)
-        for f in features:
-            writer.addFeature(f)
-
-        # There is nothing more to do here. We do not have to open the
-        # layer that we have created. The framework will take care of
-        # that, or will handle it if this algorithm is executed within
-        # a complex model
+        # Done - throw an appropriate error on failure

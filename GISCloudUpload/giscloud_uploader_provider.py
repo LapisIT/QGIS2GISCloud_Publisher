@@ -58,7 +58,7 @@ class GISCloudUploadProvider(AlgorithmProvider):
         deactivating the algorithms in the provider.
         """
         AlgorithmProvider.initializeSettings(self)
-        ProcessingConfig.addSetting(Setting('Example algorithms',
+        ProcessingConfig.addSetting(Setting(self.getDescription(),
             GISCloudUploadProvider.MY_DUMMY_SETTING,
             'Example setting', 'Default value'))
 
@@ -76,12 +76,12 @@ class GISCloudUploadProvider(AlgorithmProvider):
         It is also used to create the command line name of all the
         algorithms from this provider.
         """
-        return 'Spatial Vision'
+        return self.getDescription()
 
     def getDescription(self):
         """This is the provired full name.
         """
-        return 'Spatial Vision'
+        return "GISCloud Uploader"
 
     def getIcon(self):
         """We return the default icon.
