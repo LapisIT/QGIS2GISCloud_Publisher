@@ -64,6 +64,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     INPUT_LAYER = 'INPUT_LAYER'
     API_KEY = 'API_KEY'
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
+    MAP_NAME = "MAP_NAME"
 
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
@@ -82,8 +83,22 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             self.INPUT_LAYER, # tool parameter to store the input under.
             self.tr('Vector layers to upload to GISCloud'), # name as it appears in the window
             ParameterMultipleInput.TYPE_VECTOR_ANY,  # Either raster or vector
-            False  # Not optional
+            True  # Not optional
         ))
+
+        # self.addParameter(ParameterMultipleInput(
+        #     self.INPUT_LAYER, # tool parameter to store the input under.
+        #     self.tr('Raster layers to upload to GISCloud'), # name as it appears in the window
+        #     ParameterMultipleInput.TYPE_RASTER,  # Either raster or vector
+        #     True  # Not optional
+        # ))
+        #
+        # self.addParameter(ParameterMultipleInput(
+        #     self.INPUT_LAYER, # tool parameter to store the input under.
+        #     self.tr('Files to upload to GISCloud'), # name as it appears in the window
+        #     ParameterMultipleInput.TYPE_FILE,  # Either raster or vector
+        #     True  # Not optional
+        # ))
 
         self.addParameter(ParameterString(
             self.API_KEY,
@@ -92,16 +107,25 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         ))
 
         self.addParameter(ParameterString(
-        self.OUTPUT_FOLDER,
-        "GISCloud output folder name",
-        default="Upload"
+            self.OUTPUT_FOLDER,
+            "GISCloud output folder name",
+            default="QGIS upload"
         ))
+
+        # self.addParameter(ParameterString(
+        #     self.MAP_NAME,
+        #     "GISCloud output map name",
+        #     default="Map",
+        #     # True
+        # ))
 
     def processAlgorithm(self, progress):
         """Here is where the processing itself takes place."""
 
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
+
+        # map_name = self.getParameterValue(self.MAP_NAME)
         input_filenames = self.getParameterValue(self.INPUT_LAYER).split(",")
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
@@ -112,7 +136,10 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "API-Key": api_key,
         }
 
+        # newmap_name = rest_endpoint + "maps/" + map_name
         storage_url = rest_endpoint + "storage/fs/" + output_filename
+
+        # r = requests.post(newmap_name, headers=headers, files=z, verify=False)
 
         for path in input_filenames:
 
@@ -142,5 +169,5 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
-            "Uploaded all datasets"
+            "Uploaded all datasets to the GIS Cloud folder " + output_filename
         )
