@@ -31,6 +31,7 @@ __revision__ = '$Format:%H$'
 
 from glob import glob
 import os.path
+from itertools import chain
 
 from PyQt4.QtCore import QSettings
 from qgis.core import QgsVectorFileWriter
@@ -61,9 +62,11 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     # used when calling the algorithm from another algorithm, or when
     # calling from the QGIS console.
 
-    INPUT_LAYER = 'INPUT_LAYER'
+    INPUT_LAYER_VECTOR = 'INPUT_LAYER_VECTOR'
+    INPUT_LAYER_RASTER = "INPUT_LAYER_RASTER"
     API_KEY = 'API_KEY'
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
+    MAP_NAME = "MAP_NAME"
 
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
@@ -79,10 +82,17 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # We add the input vector layer. It can have any kind of geometry
         # It is a mandatory (not optional) one, hence the False argument
         self.addParameter(ParameterMultipleInput(
-            self.INPUT_LAYER, # tool parameter to store the input under.
+            self.INPUT_LAYER_VECTOR, # tool parameter to store the input under.
             self.tr('Vector layers to upload to GISCloud'), # name as it appears in the window
             ParameterMultipleInput.TYPE_VECTOR_ANY,  # Either raster or vector
-            False  # Not optional
+            True  # Not optional
+        ))
+
+        self.addParameter(ParameterMultipleInput(
+            self.INPUT_LAYER_RASTER, # tool parameter to store the input under.
+            self.tr('Raster layers to upload to GISCloud'), # name as it appears in the window
+            ParameterMultipleInput.TYPE_RASTER,  # Either raster or vector
+            True  # Not optional
         ))
 
         self.addParameter(ParameterString(
@@ -92,17 +102,33 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         ))
 
         self.addParameter(ParameterString(
-        self.OUTPUT_FOLDER,
-        "GISCloud output folder name",
-        default="Upload"
+            self.OUTPUT_FOLDER,
+            "GISCloud output folder name",
+            default="QGIS upload"
         ))
+        #
+        # self.addParameter(ParameterString(
+        #     self.MAP_NAME,
+        #     "GISCloud output map name: Leave blank if you do not want to produce a new map with your upload",
+        #     default="Map Project",
+        #     optional=True
+        # ))
 
     def processAlgorithm(self, progress):
         """Here is where the processing itself takes place."""
 
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
-        input_filenames = self.getParameterValue(self.INPUT_LAYER).split(",")
+
+        # map_name = self.getParameterValue(self.MAP_NAME)
+        input_filenames = filter(
+            self.check_extension,
+            chain(
+                (self.getParameterValue(self.INPUT_LAYER_VECTOR) or "").split(","),
+                 (self.getParameterValue(self.INPUT_LAYER_RASTER) or "").split(",")
+            )
+        )
+
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
 
@@ -113,6 +139,13 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         }
 
         storage_url = rest_endpoint + "storage/fs/" + output_filename
+
+        if not input_filenames:
+            ProcessingLog.addToLog(
+                ProcessingLog.LOG_WARNING,
+                "No valid datasets found to upload"
+            )
+            return
 
         for path in input_filenames:
 
@@ -130,17 +163,31 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 zip_path
             )
 
-
-            z =  {'file': open(zip_path, 'rb')}
+            z = {'file': open(zip_path, 'rb')}
             r = requests.post(storage_url, headers=headers, files=z, verify=False)
-            # r.status_code
+            r.raise_for_status()
 
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
                 "Uploaded {}".format(path)
             )
 
+        # TODO: Call a function to generate a map...
+
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
-            "Uploaded all datasets"
+            "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
         )
+
+    def check_extension(self, path):
+        filename, file_extension = os.path.splitext(path)
+        if file_extension in (".mif", ".mid", ".tab", ".kml", ".gpx", ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
+                              ".jpg", ".gif", ".png", ".pdf", ".json", ".geojson"):
+            return True
+        else:
+            if path:  # i.e. not an empty string
+                ProcessingLog.addToLog(
+                    ProcessingLog.LOG_WARNING,
+                    "{} is not an accepted filetype".format(path)
+                )
+            return False
