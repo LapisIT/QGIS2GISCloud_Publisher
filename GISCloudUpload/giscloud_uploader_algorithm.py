@@ -37,13 +37,14 @@ from PyQt4.QtCore import QSettings
 from qgis.core import QgsVectorFileWriter
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterMultipleInput, ParameterString
+from processing.core.parameters import ParameterMultipleInput, ParameterString, ParameterBoolean
 from processing.core.ProcessingLog import ProcessingLog
 from processing.core.outputs import OutputVector
 from processing.tools import dataobjects, vector, system
 
 import requests
 import zipfile
+import json
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """This is an example algorithm that takes a vector layer and
@@ -67,6 +68,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     API_KEY = 'API_KEY'
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
     MAP_NAME = "MAP_NAME"
+    CHOOSE_MAP = "CHOOSE_MAP"
+
 
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
@@ -106,13 +109,18 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "GISCloud output folder name",
             default="QGIS upload"
         ))
-        #
-        # self.addParameter(ParameterString(
-        #     self.MAP_NAME,
-        #     "GISCloud output map name: Leave blank if you do not want to produce a new map with your upload",
-        #     default="Map Project",
-        #     optional=True
-        # ))
+
+        self.addParameter(ParameterBoolean(
+            self.CHOOSE_MAP,
+            "Would you like to add the uploaded files to a new map?",
+            default=False
+        ))
+
+        self.addParameter(ParameterString(
+            self.MAP_NAME,
+            "GISCloud output map name: Leave blank if you do not want to produce a new map with your uploaded layers",
+            default="Map Project"
+        ))
 
     def processAlgorithm(self, progress):
         """Here is where the processing itself takes place."""
@@ -136,6 +144,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         headers = {
             "API-Version": 1,
             "API-Key": api_key,
+            # "Content-Type": "application/json"
         }
 
         storage_url = rest_endpoint + "storage/fs/" + output_filename
@@ -146,6 +155,9 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 "No valid datasets found to upload"
             )
             return
+
+
+        mid = self.create_map()
 
         for path in input_filenames:
 
@@ -167,6 +179,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             r = requests.post(storage_url, headers=headers, files=z, verify=False)
             r.raise_for_status()
 
+            self.add_layer_to_map(min, os.path.basename(path), output_filename)
+
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
                 "Uploaded {}".format(path)
@@ -181,7 +195,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
     def check_extension(self, path):
         filename, file_extension = os.path.splitext(path)
-        if file_extension in (".mif", ".mid", ".tab", ".kml", ".gpx", ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
+        if file_extension in (".shp", ".mif", ".mid", ".tab", ".kml", ".gpx", ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
                               ".jpg", ".gif", ".png", ".pdf", ".json", ".geojson"):
             return True
         else:
@@ -191,3 +205,109 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                     "{} is not an accepted filetype".format(path)
                 )
             return False
+
+
+    def bounds(self, layers):
+        extent = None
+        for layer in layers:
+            if layer.type() == 0:
+                transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84 / UTM zone 33N
+                try:
+                    layerExtent = transform.transform(layer.extent())
+                except QgsCsException:
+                    print "exception in transform layer srs"
+                    layerExtent = QgsRectangle(-180, -90, 180, 90)
+                if extent is None:
+                    extent = layerExtent
+                else:
+                    extent.combineExtentWith(layerExtent)
+
+        return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
+
+    def create_map(self):
+        #TODO: Return the MID
+        input_mapname = self.getParameterValue(self.MAP_NAME)
+        rest_endpoint = "https://api.giscloud.com/1/"
+        api_key = "62f961b31cbd0bc067cfa6f31a787826"
+        headers = {
+            "API-Version": 1,
+            "API-Key": api_key,
+            "Content-Type": "application/json"
+            }
+        map_url = rest_endpoint + "maps.json"
+
+        (xmin, ymin, xmax, ymax) = self.bounds(layers)
+
+        data = {
+            "name": input_mapname,
+            "bounds": {
+            "xmin": xmin, #todo; etc
+            "xmax":extent.xMaximum(),
+            "ymin":extent.yMinimum(),
+            "ymax":extent.yMaximum()
+            },
+            "description": "This is us testing things because the API isn't documented...",
+            "proj4": "+init=epsg:4326",
+            "units": "degree"
+            }
+        r = requests.post(map_url, headers=headers, data=json.dumps(data), verify=False)
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            input_mapname + " was successfully uploaded to your account"
+                )
+
+
+    def add_layer_to_map(self, mid, layer_name, upload_folder):
+        #TODO Write the add layer code here
+        pass
+
+    # def symbologystyle(self):
+    #     var viewer,
+    #         mapId = 271800,
+    #         pointLayerId = 754188,
+    #         lineLayerId = 754189,
+    #         polygonLayerId = 754190,
+    #         $ = giscloud.exposeJQuery(),
+    #         updating = $.Deferred().resolve(),
+    #
+    #
+    #     pointStyle1 = [
+    #     {
+    #         visible: true,
+    #         expression: "isnull(value)",
+    #         url: null,
+    #         galleryUrl: null,
+    #         symbol: {
+    #             border: "30,199,72",
+    #             bw: "4",
+    #             color: "36,255,58",
+    #             size: "16",
+    #             type: "circle",
+    #     }],
+    #     lineStyle1 = [
+    #     {
+    #         expression: "",
+    #         visible: true,
+    #         color: "102,153,204",
+    #         width: "3",
+    #         bordercolor: "0,102,204",
+    #         borderwidth: "4",
+    #     }],
+    #     polygonStyle2 = [
+    #     {
+    #         visible: true,
+    #         expression: "",
+    #         color: "247,182,52",
+    #         bordercolor: "255,242,61",
+    #         borderwidth: "4",
+    #         labelfield: "value",
+    #         fontname: "Arial Black",
+    #         fontsize: "18",
+    #         fontcolor: "99,63,8",
+    #         outline: "255,242,61"
+    #     }];
+
+
+
+
