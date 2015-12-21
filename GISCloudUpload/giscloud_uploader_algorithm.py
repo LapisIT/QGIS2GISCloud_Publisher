@@ -138,13 +138,10 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
         map_name = self.getParameterValue(self.MAP_NAME)
-
-
         rest_endpoint = "https://api.giscloud.com/1/"
-        headers = {
+        base_headers = {
             "API-Version": 1,
             "API-Key": api_key,
-            "Content-Type": "application/json"
         }
 
         map_url = rest_endpoint + "maps.json"
@@ -159,54 +156,57 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             return
 
         if map_name:
-            self.create_map(map_url, headers, map_name)
-
-            else:
+            mid = self.create_map(map_url, base_headers, map_name)
+        else:
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
-                "No map will be created, all files will be added to the file manager in" + output_filename
-            )
+                "No map will be created, all files will be added to the file manager in" + output_filename)
+            mid = None
 
-        for file in input_filenames:
-            self.upload_to_filemanager(storage_url, headers, input_filenames, output_filename, mid, layer_url)
-
-    def upload_to_filemanager(self, storage_url, headers, input_filenames, output_filename, mid, layer_url):
 
         for path in input_filenames:
+            self.upload_to_filemanager(storage_url, base_headers, path)
+            if mid:
+               self.add_layer_to_map(mid, path, output_filename, layer_url, base_headers)
 
-            zip_path = system.getTempFilename("zip")
-            with zipfile.ZipFile(zip_path, "w") as z:
-                for p in glob(os.path.splitext(path)[0] + ".*"):
-                    ProcessingLog.addToLog(
-                       ProcessingLog.LOG_INFO,
-                       p
-                    )
-                    z.write(p, os.path.basename(p))
-
-            ProcessingLog.addToLog(
-                ProcessingLog.LOG_INFO,
-                zip_path
-            )
-
-            z = {'file': open(zip_path, 'rb')}
-            r = requests.post(storage_url, headers=headers, files=z, verify=False)
-            r.raise_for_status()
-
-            self.add_layer_to_map(min, os.path.basename(path), output_filename, layer_url)
-
-            ProcessingLog.addToLog(
-                ProcessingLog.LOG_INFO,
-                "Uploaded {}".format(path)
-            )
-
-        # TODO: Call a function to generate a map...
-
-        self.add_layer_to_map(self, mid, )
 
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
         )
+
+
+    def upload_to_filemanager(self, storage_url, base_headers, path):
+
+        zip_path = system.getTempFilename("zip")
+        # zip_path = r"C:\TEMP\something.zip"
+        with zipfile.ZipFile(zip_path, "w") as z:
+            for p in glob(os.path.splitext(path)[0] + ".*"):
+                ProcessingLog.addToLog(
+                   ProcessingLog.LOG_INFO,
+                   p
+                )
+                z.write(p, os.path.basename(p))
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            zip_path
+        )
+
+        z = {'file': open(zip_path, 'rb')}
+        r = requests.post(storage_url, headers=base_headers, files=z, verify=False)
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            str(r.status_code)
+        )
+        r.raise_for_status()
+
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            "Uploaded {}".format(path)
+        )
+
 
     def check_extension(self, path):
         filename, file_extension = os.path.splitext(path)
@@ -221,25 +221,34 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 )
             return False
 
-    def create_map(self, map_url, headers, map_name):
+    def create_map(self, map_url, base_headers, map_name):
+        #
+        # layers = [xmin, ymin, xmax, ymax]
+        # self.bounds(layers)
 
-        (xmin, ymin, xmax, ymax) = self.bounds(layers)
+        headers = {
+            "ContentType": "application/json"
+        }
+        headers.update(base_headers)
 
         map_data = {
             "name": map_name,
             "bounds": {
-                "xmin": xmin,
-                "xmax": xmax,
-                "ymin": ymin,
-                "ymax": ymax
-                },
+                "xmin":144.826578188257,
+                "xmax":145.104797178699,
+                "ymin":-37.8998211916982,
+                "ymax":-37.7492346937475
+            },
             "description": "Description",
             "proj4": "+init=epsg:4326",
             "units": "degree"
             }
-        map_post = requests.post(map_url, headers=headers, data=json.dumps(map_data), verify=False)
+        map_post = requests.post(map_url, headers=base_headers, data=json.dumps(map_data), verify=False)
 
         mid = int(map_post.headers['Location'].split("/")[-1])
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            "mid %i" % mid)
 
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
@@ -248,37 +257,51 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
         return mid
 
-    def bounds(self, layers):
-        extent = None
-        for layer in layers:
-            if layer.type() == 0:
-                transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84 / UTM zone 33N
-                try:
-                    layerExtent = transform.transform(layer.extent())
-                except QgsCsException:
-                    print "exception in transform layer srs"
-                    layerExtent = QgsRectangle(-180, -90, 180, 90)
-                if extent is None:
-                    extent = layerExtent
-                else:
-                    extent.combineExtentWith(layerExtent)
+    # def bounds(self, layers):
+    #     extent = None
+    #     for layer in layers:
+    #         if layer.type() == 0:
+    #             transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84 / UTM zone 33N
+    #             try:
+    #                 layerExtent = transform.transform(layer.extent())
+    #             except QgsCsException:
+    #                 print "exception in transform layer srs"
+    #                 layerExtent = QgsRectangle(-180, -90, 180, 90)
+    #             if extent is None:
+    #                 extent = layerExtent
+    #             else:
+    #                 extent.combineExtentWith(layerExtent)
+    #
+    #     return (xmin, ymin, xmax, ymax)
 
-        return extent.xmin, extent.ymin, extent.xmax, extent.ymax
+    def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
 
-    def add_layer_to_map(self, mid, layer_name, upload_folder, layer_url, headers):
+        basename = os.path.basename(path)
+
+        headers = {
+            "ContentType": "application/json"
+        }
+        headers.update(base_headers)
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            headers)
 
         layer_data = {
             "mid":  mid,
-            "name": layer_name,
+            "name": basename,
             "type": "polygon",
             "source": json.dumps({
                 "type": "file",
-                "src": "/" + upload_folder + "/" + layer_name,
-                "name": layer_name
+                "src": "/" + output_filename + "/" + basename,
+                "name": basename
             })
         }
-        layers_post = requests.post(layer_url, headers=headers, data=json.dumps(layer_data), verify=False)
-        pass
+        layers_post = requests.post(layer_url, headers=base_headers, data=json.dumps(layer_data), verify=False)
+
+        layers_post.raise_for_status()
+
+
 
     # def symbologystyle(self):
     #     var viewer,
