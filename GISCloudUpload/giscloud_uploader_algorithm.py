@@ -128,7 +128,6 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
 
-        # map_name = self.getParameterValue(self.MAP_NAME)
         input_filenames = filter(
             self.check_extension,
             chain(
@@ -136,17 +135,20 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                  (self.getParameterValue(self.INPUT_LAYER_RASTER) or "").split(",")
             )
         )
-
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
+        map_name = self.getParameterValue(self.MAP_NAME)
+
 
         rest_endpoint = "https://api.giscloud.com/1/"
         headers = {
             "API-Version": 1,
             "API-Key": api_key,
-            # "Content-Type": "application/json"
+            "Content-Type": "application/json"
         }
 
+        map_url = rest_endpoint + "maps.json"
+        layer_url = rest_endpoint + "layers.json"
         storage_url = rest_endpoint + "storage/fs/" + output_filename
 
         if not input_filenames:
@@ -156,8 +158,19 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             )
             return
 
+        if map_name:
+            self.create_map(map_url, headers, map_name)
 
-        mid = self.create_map()
+            else:
+            ProcessingLog.addToLog(
+                ProcessingLog.LOG_INFO,
+                "No map will be created, all files will be added to the file manager in" + output_filename
+            )
+
+        for file in input_filenames:
+            self.upload_to_filemanager(storage_url, headers, input_filenames, output_filename, mid, layer_url)
+
+    def upload_to_filemanager(self, storage_url, headers, input_filenames, output_filename, mid, layer_url):
 
         for path in input_filenames:
 
@@ -179,7 +192,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             r = requests.post(storage_url, headers=headers, files=z, verify=False)
             r.raise_for_status()
 
-            self.add_layer_to_map(min, os.path.basename(path), output_filename)
+            self.add_layer_to_map(min, os.path.basename(path), output_filename, layer_url)
 
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
@@ -187,6 +200,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             )
 
         # TODO: Call a function to generate a map...
+
+        self.add_layer_to_map(self, mid, )
 
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
@@ -206,6 +221,32 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 )
             return False
 
+    def create_map(self, map_url, headers, map_name):
+
+        (xmin, ymin, xmax, ymax) = self.bounds(layers)
+
+        map_data = {
+            "name": map_name,
+            "bounds": {
+                "xmin": xmin,
+                "xmax": xmax,
+                "ymin": ymin,
+                "ymax": ymax
+                },
+            "description": "Description",
+            "proj4": "+init=epsg:4326",
+            "units": "degree"
+            }
+        map_post = requests.post(map_url, headers=headers, data=json.dumps(map_data), verify=False)
+
+        mid = int(map_post.headers['Location'].split("/")[-1])
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            map_name + " was successfully uploaded to your account"
+                )
+
+        return mid
 
     def bounds(self, layers):
         extent = None
@@ -222,44 +263,21 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 else:
                     extent.combineExtentWith(layerExtent)
 
-        return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
+        return extent.xmin, extent.ymin, extent.xmax, extent.ymax
 
-    def create_map(self):
-        #TODO: Return the MID
-        input_mapname = self.getParameterValue(self.MAP_NAME)
-        rest_endpoint = "https://api.giscloud.com/1/"
-        api_key = "62f961b31cbd0bc067cfa6f31a787826"
-        headers = {
-            "API-Version": 1,
-            "API-Key": api_key,
-            "Content-Type": "application/json"
-            }
-        map_url = rest_endpoint + "maps.json"
+    def add_layer_to_map(self, mid, layer_name, upload_folder, layer_url, headers):
 
-        (xmin, ymin, xmax, ymax) = self.bounds(layers)
-
-        data = {
-            "name": input_mapname,
-            "bounds": {
-            "xmin": xmin, #todo; etc
-            "xmax":extent.xMaximum(),
-            "ymin":extent.yMinimum(),
-            "ymax":extent.yMaximum()
-            },
-            "description": "This is us testing things because the API isn't documented...",
-            "proj4": "+init=epsg:4326",
-            "units": "degree"
-            }
-        r = requests.post(map_url, headers=headers, data=json.dumps(data), verify=False)
-
-        ProcessingLog.addToLog(
-            ProcessingLog.LOG_INFO,
-            input_mapname + " was successfully uploaded to your account"
-                )
-
-
-    def add_layer_to_map(self, mid, layer_name, upload_folder):
-        #TODO Write the add layer code here
+        layer_data = {
+            "mid":  mid,
+            "name": layer_name,
+            "type": "polygon",
+            "source": json.dumps({
+                "type": "file",
+                "src": "/" + upload_folder + "/" + layer_name,
+                "name": layer_name
+            })
+        }
+        layers_post = requests.post(layer_url, headers=headers, data=json.dumps(layer_data), verify=False)
         pass
 
     # def symbologystyle(self):
