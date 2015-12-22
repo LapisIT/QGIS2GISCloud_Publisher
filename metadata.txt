@@ -30,7 +30,7 @@ tags=webservice
 
 homepage=http://spatialvision.com.au
 category=Analysis
-icon=icon.png
+icon=icons/cloudupload.png
 # experimental flag
 experimental=True
 

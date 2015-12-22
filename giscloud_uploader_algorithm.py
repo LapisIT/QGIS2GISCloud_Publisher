@@ -33,18 +33,18 @@ from glob import glob
 import os.path
 from itertools import chain
 
-from PyQt4.QtCore import QSettings
-from qgis.core import QgsVectorFileWriter
+from qgis.core import QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsCsException, QgsRectangle
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterMultipleInput, ParameterString, ParameterBoolean
 from processing.core.ProcessingLog import ProcessingLog
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector, system
+from processing.tools import dataobjects, system
 
 import requests
 import zipfile
 import json
+
+from giscloud_utils import GISCloudUtils
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """This is an example algorithm that takes a vector layer and
@@ -69,6 +69,11 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
     MAP_NAME = "MAP_NAME"
     CHOOSE_MAP = "CHOOSE_MAP"
+
+    def getIcon(self):
+        """Get the icon.
+        """
+        return GISCloudUtils.getIcon()
 
 
     def defineCharacteristics(self):
@@ -137,16 +142,13 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         )
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
+        map_created = str(self.getParameterValue(self.CHOOSE_MAP))
         map_name = self.getParameterValue(self.MAP_NAME)
-
-
         rest_endpoint = "https://api.giscloud.com/1/"
-        headers = {
+        base_headers = {
             "API-Version": 1,
             "API-Key": api_key,
-            "Content-Type": "application/json"
         }
-
         map_url = rest_endpoint + "maps.json"
         layer_url = rest_endpoint + "layers.json"
         storage_url = rest_endpoint + "storage/fs/" + output_filename
@@ -158,55 +160,73 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             )
             return
 
-        if map_name:
-            self.create_map(map_url, headers, map_name)
-
-            else:
+        if map_created == 'True':
+            bounds = self.bounds(input_filenames)
+            mid = self.create_map(map_url, base_headers, map_name, bounds)
+        else:
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
-                "No map will be created, all files will be added to the file manager in" + output_filename
-            )
+                "No map will be created, all files will be added to the file manager in" + output_filename)
+            mid = None
 
-        for file in input_filenames:
-            self.upload_to_filemanager(storage_url, headers, input_filenames, output_filename, mid, layer_url)
-
-    def upload_to_filemanager(self, storage_url, headers, input_filenames, output_filename, mid, layer_url):
 
         for path in input_filenames:
+            self.upload_to_filemanager(storage_url, base_headers, path)
+            if mid:
+               self.add_layer_to_map(mid, path, output_filename, layer_url, base_headers)
 
-            zip_path = system.getTempFilename("zip")
-            with zipfile.ZipFile(zip_path, "w") as z:
-                for p in glob(os.path.splitext(path)[0] + ".*"):
-                    ProcessingLog.addToLog(
-                       ProcessingLog.LOG_INFO,
-                       p
-                    )
-                    z.write(p, os.path.basename(p))
-
-            ProcessingLog.addToLog(
-                ProcessingLog.LOG_INFO,
-                zip_path
-            )
-
-            z = {'file': open(zip_path, 'rb')}
-            r = requests.post(storage_url, headers=headers, files=z, verify=False)
-            r.raise_for_status()
-
-            self.add_layer_to_map(min, os.path.basename(path), output_filename, layer_url)
-
-            ProcessingLog.addToLog(
-                ProcessingLog.LOG_INFO,
-                "Uploaded {}".format(path)
-            )
-
-        # TODO: Call a function to generate a map...
-
-        self.add_layer_to_map(self, mid, )
 
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
         )
+
+
+    def help(self):
+        """
+        Get the help documentation for this algorithm.
+        :return: Help text is html from string, the help html
+        :rtype: bool, str
+        """
+        help_data = open(os.path.join(
+            os.path.dirname(__file__),
+            "doc",
+            "Publishing instructions.html"
+        )).read()
+
+        return True, help_data
+
+
+    def upload_to_filemanager(self, storage_url, base_headers, path):
+
+        zip_path = system.getTempFilename("zip")
+        with zipfile.ZipFile(zip_path, "w") as z:
+            for p in glob(os.path.splitext(path)[0] + ".*"):
+                ProcessingLog.addToLog(
+                   ProcessingLog.LOG_INFO,
+                   p
+                )
+                z.write(p, os.path.basename(p))
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            zip_path
+        )
+
+        z = {'file': open(zip_path, 'rb')}
+        post = requests.post(storage_url, headers=base_headers, files=z, verify=False)
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            str(post.status_code)
+        )
+        post.raise_for_status()
+
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            "Uploaded {}".format(path)
+        )
+
 
     def check_extension(self, path):
         filename, file_extension = os.path.splitext(path)
@@ -221,25 +241,31 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 )
             return False
 
-    def create_map(self, map_url, headers, map_name):
+    def create_map(self, map_url, base_headers, map_name, bounds):
 
-        (xmin, ymin, xmax, ymax) = self.bounds(layers)
+        headers = {
+            "ContentType": "application/json"
+        }
+        headers.update(base_headers)
 
         map_data = {
             "name": map_name,
             "bounds": {
-                "xmin": xmin,
-                "xmax": xmax,
-                "ymin": ymin,
-                "ymax": ymax
-                },
+                "x_min": bounds[0],
+                "x_max": bounds[1],
+                "y_min": bounds[2],
+                "y_max": bounds[3]
+            },
             "description": "Description",
             "proj4": "+init=epsg:4326",
             "units": "degree"
             }
-        map_post = requests.post(map_url, headers=headers, data=json.dumps(map_data), verify=False)
+        map_post = requests.post(map_url, headers=base_headers, data=json.dumps(map_data), verify=False)
 
         mid = int(map_post.headers['Location'].split("/")[-1])
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            "mid %i" % mid)
 
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
@@ -248,11 +274,17 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
         return mid
 
-    def bounds(self, layers):
+    def bounds(self, input_filenames):
+
+        layers = [
+            dataobjects.getObjectFromUri(path)
+            for path in input_filenames
+        ]
+
         extent = None
         for layer in layers:
             if layer.type() == 0:
-                transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84 / UTM zone 33N
+                transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84
                 try:
                     layerExtent = transform.transform(layer.extent())
                 except QgsCsException:
@@ -263,69 +295,31 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 else:
                     extent.combineExtentWith(layerExtent)
 
-        return extent.xmin, extent.ymin, extent.xmax, extent.ymax
+        print layers
+        return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
 
-    def add_layer_to_map(self, mid, layer_name, upload_folder, layer_url, headers):
+
+    def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
+        basename = os.path.basename(path)
+        headers = {
+            "ContentType": "application/json"
+        }
+        headers.update(base_headers)
+
+        ProcessingLog.addToLog(
+            ProcessingLog.LOG_INFO,
+            headers)
 
         layer_data = {
             "mid":  mid,
-            "name": layer_name,
+            "name": basename,
             "type": "polygon",
             "source": json.dumps({
                 "type": "file",
-                "src": "/" + upload_folder + "/" + layer_name,
-                "name": layer_name
+                "src": "/" + output_filename + "/" + basename,
+                "name": basename
             })
         }
-        layers_post = requests.post(layer_url, headers=headers, data=json.dumps(layer_data), verify=False)
-        pass
+        layers_post = requests.post(layer_url, headers=base_headers, data=json.dumps(layer_data), verify=False)
 
-    # def symbologystyle(self):
-    #     var viewer,
-    #         mapId = 271800,
-    #         pointLayerId = 754188,
-    #         lineLayerId = 754189,
-    #         polygonLayerId = 754190,
-    #         $ = giscloud.exposeJQuery(),
-    #         updating = $.Deferred().resolve(),
-    #
-    #
-    #     pointStyle1 = [
-    #     {
-    #         visible: true,
-    #         expression: "isnull(value)",
-    #         url: null,
-    #         galleryUrl: null,
-    #         symbol: {
-    #             border: "30,199,72",
-    #             bw: "4",
-    #             color: "36,255,58",
-    #             size: "16",
-    #             type: "circle",
-    #     }],
-    #     lineStyle1 = [
-    #     {
-    #         expression: "",
-    #         visible: true,
-    #         color: "102,153,204",
-    #         width: "3",
-    #         bordercolor: "0,102,204",
-    #         borderwidth: "4",
-    #     }],
-    #     polygonStyle2 = [
-    #     {
-    #         visible: true,
-    #         expression: "",
-    #         color: "247,182,52",
-    #         bordercolor: "255,242,61",
-    #         borderwidth: "4",
-    #         labelfield: "value",
-    #         fontname: "Arial Black",
-    #         fontsize: "18",
-    #         fontcolor: "99,63,8",
-    #         outline: "255,242,61"
-    #     }];
-
-
-
-
+        layers_post.raise_for_status()
