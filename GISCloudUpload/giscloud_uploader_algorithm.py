@@ -33,8 +33,9 @@ from glob import glob
 import os.path
 from itertools import chain
 
+from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import QSettings
-from qgis.core import QgsVectorFileWriter
+from qgis.core import QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsCsException, QgsRectangle
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterMultipleInput, ParameterString, ParameterBoolean
@@ -45,6 +46,8 @@ from processing.tools import dataobjects, vector, system
 import requests
 import zipfile
 import json
+
+from giscloud_utils import GISCloudUtils
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """This is an example algorithm that takes a vector layer and
@@ -69,6 +72,11 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
     MAP_NAME = "MAP_NAME"
     CHOOSE_MAP = "CHOOSE_MAP"
+
+    def getIcon(self):
+        """Get the icon.
+        """
+        return GISCloudUtils.getIcon()
 
 
     def defineCharacteristics(self):
@@ -137,13 +145,13 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         )
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         api_key = self.getParameterValue(self.API_KEY)
+        map_created = str(self.getParameterValue(self.CHOOSE_MAP))
         map_name = self.getParameterValue(self.MAP_NAME)
         rest_endpoint = "https://api.giscloud.com/1/"
         base_headers = {
             "API-Version": 1,
             "API-Key": api_key,
         }
-
         map_url = rest_endpoint + "maps.json"
         layer_url = rest_endpoint + "layers.json"
         storage_url = rest_endpoint + "storage/fs/" + output_filename
@@ -155,8 +163,9 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             )
             return
 
-        if map_name:
-            mid = self.create_map(map_url, base_headers, map_name)
+        if map_created == 'True':
+            bounds = self.bounds(input_filenames)
+            mid = self.create_map(map_url, base_headers, map_name, bounds)
         else:
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
@@ -175,11 +184,24 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
         )
 
+    def help(self):
+        """
+        Get the help documentation for this algorithm.
+        :return: Help text is html from string, the help html
+        :rtype: bool, str
+        """
+        help_data = open(os.path.join(
+            os.path.dirname(__file__),
+            "doc",
+            "Publishing instructions.html"
+        )).read()
+
+        return True, help_data
+
 
     def upload_to_filemanager(self, storage_url, base_headers, path):
 
         zip_path = system.getTempFilename("zip")
-        # zip_path = r"C:\TEMP\something.zip"
         with zipfile.ZipFile(zip_path, "w") as z:
             for p in glob(os.path.splitext(path)[0] + ".*"):
                 ProcessingLog.addToLog(
@@ -221,10 +243,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 )
             return False
 
-    def create_map(self, map_url, base_headers, map_name):
-        #
-        # layers = [xmin, ymin, xmax, ymax]
-        # self.bounds(layers)
+    def create_map(self, map_url, base_headers, map_name, bounds):
 
         headers = {
             "ContentType": "application/json"
@@ -234,10 +253,10 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         map_data = {
             "name": map_name,
             "bounds": {
-                "xmin":144.826578188257,
-                "xmax":145.104797178699,
-                "ymin":-37.8998211916982,
-                "ymax":-37.7492346937475
+                "x_min": bounds[0],
+                "x_max": bounds[1],
+                "y_min": bounds[2],
+                "y_max": bounds[3]
             },
             "description": "Description",
             "proj4": "+init=epsg:4326",
@@ -257,27 +276,33 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
         return mid
 
-    # def bounds(self, layers):
-    #     extent = None
-    #     for layer in layers:
-    #         if layer.type() == 0:
-    #             transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84 / UTM zone 33N
-    #             try:
-    #                 layerExtent = transform.transform(layer.extent())
-    #             except QgsCsException:
-    #                 print "exception in transform layer srs"
-    #                 layerExtent = QgsRectangle(-180, -90, 180, 90)
-    #             if extent is None:
-    #                 extent = layerExtent
-    #             else:
-    #                 extent.combineExtentWith(layerExtent)
-    #
-    #     return (xmin, ymin, xmax, ymax)
+    def bounds(self, input_filenames):
+
+        layers = [
+            dataobjects.getObjectFromUri(path)
+            for path in input_filenames
+        ]
+
+        extent = None
+        for layer in layers:
+            if layer.type() == 0:
+                transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84
+                try:
+                    layerExtent = transform.transform(layer.extent())
+                except QgsCsException:
+                    print "exception in transform layer srs"
+                    layerExtent = QgsRectangle(-180, -90, 180, 90)
+                if extent is None:
+                    extent = layerExtent
+                else:
+                    extent.combineExtentWith(layerExtent)
+
+        print layers
+        return extent.x_min, extent.x_max, extent.y_min, extent.y_max
+
 
     def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
-
         basename = os.path.basename(path)
-
         headers = {
             "ContentType": "application/json"
         }
@@ -302,6 +327,16 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         layers_post.raise_for_status()
 
 
+    # def copySymbols(symbol, tempPath, fileNames):
+    #     for i in xrange(symbol.symbolLayerCount()):
+    #         sl = symbol.symbolLayer(i)
+    #         if isinstance(sl, QgsSvgMarkerSymbolLayerV2):
+    #             symbolPath = sl.path();
+    #             shutil.copy(symbolPath, tempPath)
+    #             print "Copying " + str(sl.path())
+    #             fileNames.append(tempPath + os.sep + os.path.basename(symbolPath))
+    #         else:
+    #             print "Ignoring " + str(sl)
 
     # def symbologystyle(self):
     #     var viewer,
@@ -348,6 +383,20 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
     #         fontcolor: "99,63,8",
     #         outline: "255,242,61"
     #     }];
+
+    def help(self):
+        """
+        Get the help documentation for this algorithm.
+        :return: Help text is html from string, the help html
+        :rtype: bool, str
+        """
+        help_data = open(os.path.join(
+            os.path.dirname(__file__),
+            "doc",
+            "Publishing instructions.html"
+        )).read()
+
+        return True, help_data
 
 
 

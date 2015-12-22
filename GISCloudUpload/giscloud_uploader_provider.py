@@ -32,6 +32,7 @@ __revision__ = '$Format:%H$'
 from processing.core.AlgorithmProvider import AlgorithmProvider
 from processing.core.ProcessingConfig import Setting, ProcessingConfig
 from giscloud_uploader_algorithm import GISCloudUploadAlgorithm
+from giscloud_utils import GISCloudUtils
 
 
 class GISCloudUploadProvider(AlgorithmProvider):
@@ -58,8 +59,9 @@ class GISCloudUploadProvider(AlgorithmProvider):
         deactivating the algorithms in the provider.
         """
         AlgorithmProvider.initializeSettings(self)
-        ProcessingConfig.addSetting(Setting(self.getDescription(),
-            GISCloudUploadProvider.MY_DUMMY_SETTING,
+        ProcessingConfig.addSetting(Setting(
+            self.getDescription(),
+            GISCloudUtils.GISCloud_character,
             'Example setting', 'Default value'))
 
     def unload(self):
@@ -68,7 +70,7 @@ class GISCloudUploadProvider(AlgorithmProvider):
         """
         AlgorithmProvider.unload(self)
         ProcessingConfig.removeSetting(
-            GISCloudUploadProvider.MY_DUMMY_SETTING)
+            GISCloudUtils.GISCloud_character)
 
     def getName(self):
         """This is the name that will appear on the toolbox group.
@@ -76,7 +78,7 @@ class GISCloudUploadProvider(AlgorithmProvider):
         It is also used to create the command line name of all the
         algorithms from this provider.
         """
-        return self.getDescription()
+        return 'Spatial Vision'
 
     def getDescription(self):
         """This is the provired full name.
@@ -84,9 +86,9 @@ class GISCloudUploadProvider(AlgorithmProvider):
         return "GISCloud Uploader"
 
     def getIcon(self):
-        """We return the default icon.
+        """Get the icon.
         """
-        return AlgorithmProvider.getIcon(self)
+        return GISCloudUtils.getIcon()
 
     def _loadAlgorithms(self):
         """Here we fill the list of algorithms in self.algs.
