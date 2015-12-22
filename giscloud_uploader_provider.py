@@ -78,7 +78,7 @@ class GISCloudUploadProvider(AlgorithmProvider):
         It is also used to create the command line name of all the
         algorithms from this provider.
         """
-        return 'Spatial Vision'
+        return self.getDescription()
 
     def getDescription(self):
         """This is the provired full name.

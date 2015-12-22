@@ -33,15 +33,12 @@ from glob import glob
 import os.path
 from itertools import chain
 
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import QSettings
 from qgis.core import QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsCsException, QgsRectangle
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterMultipleInput, ParameterString, ParameterBoolean
 from processing.core.ProcessingLog import ProcessingLog
-from processing.core.outputs import OutputVector
-from processing.tools import dataobjects, vector, system
+from processing.tools import dataobjects, system
 
 import requests
 import zipfile
@@ -184,6 +181,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
         )
 
+
     def help(self):
         """
         Get the help documentation for this algorithm.
@@ -216,12 +214,12 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         )
 
         z = {'file': open(zip_path, 'rb')}
-        r = requests.post(storage_url, headers=base_headers, files=z, verify=False)
+        post = requests.post(storage_url, headers=base_headers, files=z, verify=False)
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
-            str(r.status_code)
+            str(post.status_code)
         )
-        r.raise_for_status()
+        post.raise_for_status()
 
 
         ProcessingLog.addToLog(
@@ -298,7 +296,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                     extent.combineExtentWith(layerExtent)
 
         print layers
-        return extent.x_min, extent.x_max, extent.y_min, extent.y_max
+        return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
 
 
     def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
@@ -325,79 +323,3 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         layers_post = requests.post(layer_url, headers=base_headers, data=json.dumps(layer_data), verify=False)
 
         layers_post.raise_for_status()
-
-
-    # def copySymbols(symbol, tempPath, fileNames):
-    #     for i in xrange(symbol.symbolLayerCount()):
-    #         sl = symbol.symbolLayer(i)
-    #         if isinstance(sl, QgsSvgMarkerSymbolLayerV2):
-    #             symbolPath = sl.path();
-    #             shutil.copy(symbolPath, tempPath)
-    #             print "Copying " + str(sl.path())
-    #             fileNames.append(tempPath + os.sep + os.path.basename(symbolPath))
-    #         else:
-    #             print "Ignoring " + str(sl)
-
-    # def symbologystyle(self):
-    #     var viewer,
-    #         mapId = 271800,
-    #         pointLayerId = 754188,
-    #         lineLayerId = 754189,
-    #         polygonLayerId = 754190,
-    #         $ = giscloud.exposeJQuery(),
-    #         updating = $.Deferred().resolve(),
-    #
-    #
-    #     pointStyle1 = [
-    #     {
-    #         visible: true,
-    #         expression: "isnull(value)",
-    #         url: null,
-    #         galleryUrl: null,
-    #         symbol: {
-    #             border: "30,199,72",
-    #             bw: "4",
-    #             color: "36,255,58",
-    #             size: "16",
-    #             type: "circle",
-    #     }],
-    #     lineStyle1 = [
-    #     {
-    #         expression: "",
-    #         visible: true,
-    #         color: "102,153,204",
-    #         width: "3",
-    #         bordercolor: "0,102,204",
-    #         borderwidth: "4",
-    #     }],
-    #     polygonStyle2 = [
-    #     {
-    #         visible: true,
-    #         expression: "",
-    #         color: "247,182,52",
-    #         bordercolor: "255,242,61",
-    #         borderwidth: "4",
-    #         labelfield: "value",
-    #         fontname: "Arial Black",
-    #         fontsize: "18",
-    #         fontcolor: "99,63,8",
-    #         outline: "255,242,61"
-    #     }];
-
-    def help(self):
-        """
-        Get the help documentation for this algorithm.
-        :return: Help text is html from string, the help html
-        :rtype: bool, str
-        """
-        help_data = open(os.path.join(
-            os.path.dirname(__file__),
-            "doc",
-            "Publishing instructions.html"
-        )).read()
-
-        return True, help_data
-
-
-
-
