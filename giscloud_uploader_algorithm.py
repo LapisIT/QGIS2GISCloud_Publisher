@@ -1,5 +1,24 @@
 # -*- coding: utf-8 -*-
+from glob import glob
+import os.path
+from itertools import chain
 
+from qgis.core import (
+    QgsCoordinateTransform, QgsCoordinateReferenceSystem,
+    QgsCsException, QgsRectangle)
+from processing.core.GeoAlgorithm import GeoAlgorithm
+from processing.core.parameters import (
+    ParameterMultipleInput, ParameterString,
+    ParameterBoolean, ParameterExtent)
+from processing.core.ProcessingConfig import ProcessingConfig
+from processing.core.ProcessingLog import ProcessingLog
+from processing.tools import dataobjects, system
+
+import requests
+import zipfile
+import json
+
+from giscloud_utils import GISCloudUtils
 """
 /***************************************************************************
  GISCloudUpload
@@ -28,28 +47,6 @@ __copyright__ = '(C) 2015 by Spatial Vision'
 # This will get replaced with a git SHA1 when you do a git archive
 
 __revision__ = '$Format:%H$'
-
-from glob import glob
-import os.path
-from itertools import chain
-
-from qgis.core import (
-    QgsCoordinateTransform, QgsCoordinateReferenceSystem,
-    QgsCsException, QgsRectangle)
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import (
-    ParameterMultipleInput, ParameterString,
-    ParameterBoolean, ParameterExtent)
-from processing.core.ProcessingConfig import ProcessingConfig
-from processing.core.ProcessingLog import ProcessingLog
-from processing.tools import dataobjects, system
-
-import requests
-import zipfile
-import json
-
-from giscloud_utils import GISCloudUtils
-
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """
@@ -216,20 +213,20 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # Extracts the basename of the file, collects all
         # associated file type extensions and zips the files for upload
         zip_path = system.getTempFilename("zip")
-        with zipfile.ZipFile(zip_path, "w") as z:
-            for p in glob(os.path.splitext(path)[0] + ".*"):
+        with zipfile.ZipFile(zip_path, "w") as zip_GC:
+            for path_GC in glob(os.path.splitext(path)[0] + ".*"):
                 ProcessingLog.addToLog(
                     ProcessingLog.LOG_INFO,
-                   p
+                    path_GC
                 )
-                z.write(p, os.path.basename(p))
+                zip_GC.write(path_GC, os.path.basename(path_GC))
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             zip_path
         )
         # read binary and post file with GIS Cloud REST API
-        z = {'file': open(zip_path, 'rb')}
-        post = requests.post(storage_url, headers=base_headers, files=z, verify=False)
+        zip_GC = {'file': open(zip_path, 'rb')}
+        post = requests.post(storage_url, headers=base_headers, files=zip_GC, verify=False)
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             str(post.status_code)
@@ -298,7 +295,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # layers as they are processed. Under construction
         selected_extent = self.getParameterValue(self.MAP_EXTENT)
         transform = QgsCoordinateTransform(layer.crs(),
-        QgsCoordinateReferenceSystem('EPSG:4326'))  # WGS 84
+                                           QgsCoordinateReferenceSystem('EPSG:4326'))  # WGS 84
         try:
             layerExtent = transform.transform(layer.extent())
         except QgsCsException:
