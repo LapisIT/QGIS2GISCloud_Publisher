@@ -33,10 +33,13 @@ from glob import glob
 import os.path
 from itertools import chain
 
-from qgis.core import QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsCsException, QgsRectangle
-
+from qgis.core import (
+    QgsCoordinateTransform, QgsCoordinateReferenceSystem,
+    QgsCsException, QgsRectangle)
 from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import ParameterMultipleInput, ParameterString, ParameterBoolean
+from processing.core.parameters import (
+    ParameterMultipleInput, ParameterString,
+    ParameterBoolean, ParameterExtent)
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
 from processing.tools import dataobjects, system
@@ -49,16 +52,9 @@ from giscloud_utils import GISCloudUtils
 
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
-    """This is an example algorithm that takes a vector layer and
-    creates a new one just with just those features of the input
-    layer that are selected.
-
-    It is meant to be used as an example of how to create your own
-    algorithms and explain methods and variables used to do it. An
-    algorithm like this will be available in all elements, and there
-    is not need for additional work.
-
-    All Processing algorithms should extend the GeoAlgorithm class.
+    """
+    The functional algorithm for uploading QGIS environment workspace layers
+    to a GIS Cloud account.
     """
 
     # Constants used to refer to parameters and outputs. They will be
@@ -67,18 +63,20 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
     INPUT_LAYER_VECTOR = 'INPUT_LAYER_VECTOR'
     INPUT_LAYER_RASTER = "INPUT_LAYER_RASTER"
-    API_KEY = 'API_KEY'
     OUTPUT_FOLDER = 'OUTPUT_FOLDER'
     MAP_NAME = "MAP_NAME"
     CHOOSE_MAP = "CHOOSE_MAP"
+    MAP_EXTENT = "MAP_EXTENT"
 
     def getIcon(self):
-        """Get the icon.
+        """
+        Get the icon.
         """
         return GISCloudUtils.getIcon()
 
     def defineCharacteristics(self):
-        """Here we define the inputs and output of the algorithm, along
+        """
+        Here we define the inputs and output of the algorithm, along
         with some other properties.
         """
 
@@ -91,35 +89,41 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # We add the input vector layer. It can have any kind of geometry
         # It is a mandatory (not optional) one, hence the False argument
         self.addParameter(ParameterMultipleInput(
-            self.INPUT_LAYER_VECTOR, # tool parameter to store the input under.
-            self.tr('Vector layers to upload to GISCloud'), # name as it appears in the window
+            self.INPUT_LAYER_VECTOR,  # tool parameter to store the input under.
+            self.tr('Vector layers to upload to GISCloud'),  # name as it appears in the window
             ParameterMultipleInput.TYPE_VECTOR_ANY,  # Either raster or vector
             True  # Not optional
         ))
 
         self.addParameter(ParameterMultipleInput(
-            self.INPUT_LAYER_RASTER, # tool parameter to store the input under.
-            self.tr('Raster layers to upload to GISCloud'), # name as it appears in the window
+            self.INPUT_LAYER_RASTER,  # tool parameter to store the input under.
+            self.tr('Raster layers to upload to GISCloud'),  # name as it appears in the window
             ParameterMultipleInput.TYPE_RASTER,  # Either raster or vector
             True  # Not optional
         ))
 
         self.addParameter(ParameterString(
-            self.OUTPUT_FOLDER,
+            self.OUTPUT_FOLDER,  # specify the name of the folder in which to
+            # store the uploaded layers
             "GISCloud output folder name",
-            default="QGIS upload"
+            default="QGIS upload"  # default value for the folder to be uploaded
         ))
 
         self.addParameter(ParameterBoolean(
-            self.CHOOSE_MAP,
+            self.CHOOSE_MAP,  # determine if you want to upload the files to a new map
             "Would you like to add the uploaded files to a new map?",
-            default=False
+            default=False  # default not to upload to a new map
         ))
 
         self.addParameter(ParameterString(
-            self.MAP_NAME,
-            "GISCloud output map name: Leave blank if you do not want to produce a new map with your uploaded layers",
-            default="Map Project"
+            self.MAP_NAME,  # specify the map name to upload the files into
+            "GISCloud output map name: Leave blank if you do not "
+            "want to produce a new map with your uploaded layers",
+            default="Map Project"  # default map name
+        ))
+
+        self.addParameter(ParameterExtent(  # specify the extent you wish the new map to have
+            self.MAP_EXTENT, "Upload map extent"
         ))
 
     def processAlgorithm(self, progress):
@@ -127,14 +131,14 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
-
+        # the api key is derived from the optional settings value entered
         api_key = ProcessingConfig.getSetting(GISCloudUtils.GISCloud_character)
 
         input_filenames = filter(
             self.check_extension,
-            chain(
+            chain(  # producing a list from the selected layers to upload
                 (self.getParameterValue(self.INPUT_LAYER_VECTOR) or "").split(","),
-                 (self.getParameterValue(self.INPUT_LAYER_RASTER) or "").split(",")
+                (self.getParameterValue(self.INPUT_LAYER_RASTER) or "").split(",")
             )
         )
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
@@ -145,38 +149,44 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "API-Version": 1,
             "API-Key": api_key,
         }
+        # details the rest endpoint urls for the map creation,
+        # layer upload to map and the file for the layers to be uploaded to
         map_url = rest_endpoint + "maps.json"
         layer_url = rest_endpoint + "layers.json"
         storage_url = rest_endpoint + "storage/fs/" + output_filename
 
+        #  This first check establishes if the user
+        #  has entered anything for uploading and returns nothing
         if not input_filenames:
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_WARNING,
                 "No valid datasets found to upload"
             )
             return
-
+        # Assesses if the user has chooses to
+        # create a new map with the upload
         if map_created == 'True':
-            bounds = self.bounds(input_filenames)
-            mid = self.create_map(map_url, base_headers, map_name, bounds)
+            bounds = self.bounds()  # seeks to determine the extent of the map
+            mid = self.create_map(map_url, base_headers, map_name, bounds)  # Map ID
         else:
+            # provides feedback on the options taken
+            # by the user and where the data will appear
             ProcessingLog.addToLog(
                 ProcessingLog.LOG_INFO,
-                "No map will be created, all files will be added to the file manager in" + output_filename)
+                "No map will be created, all files will be added "
+                "to the file manager in" + output_filename)
             mid = None
-
-
+        # sends each of the selected files to be individually processed
+        # and entered into the giscloud file manager folder
         for path in input_filenames:
             self.upload_to_filemanager(storage_url, base_headers, path)
             if mid:
-               self.add_layer_to_map(mid, path, output_filename, layer_url, base_headers)
-
-
+                self.add_layer_to_map(mid, path, output_filename, layer_url, base_headers)
+        # validation and information feedback on the success of the upload process
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
         )
-
 
     def help(self):
         """
@@ -184,31 +194,40 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         :return: Help text is html from string, the help html
         :rtype: bool, str
         """
+        # this is contained in the root folder
+        # GISCloudUpload/doc/Publishing instructions.html
+        # help can be found on the right tab in the toolbox
         help_data = open(os.path.join(
             os.path.dirname(__file__),
             "doc",
             "Publishing instructions.html"
         )).read()
-
         return True, help_data
 
-
     def upload_to_filemanager(self, storage_url, base_headers, path):
-
+        """
+        # Sequentially uploads each of the selected files to
+        # the specified file name in GIS Clouds file manager
+        :param storage_url:
+        :param base_headers:
+        :param path:
+        :return:
+        """
+        # Extracts the basename of the file, collects all
+        # associated file type extensions and zips the files for upload
         zip_path = system.getTempFilename("zip")
         with zipfile.ZipFile(zip_path, "w") as z:
             for p in glob(os.path.splitext(path)[0] + ".*"):
                 ProcessingLog.addToLog(
-                   ProcessingLog.LOG_INFO,
+                    ProcessingLog.LOG_INFO,
                    p
                 )
                 z.write(p, os.path.basename(p))
-
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             zip_path
         )
-
+        # read binary and post file with GIS Cloud REST API
         z = {'file': open(zip_path, 'rb')}
         post = requests.post(storage_url, headers=base_headers, files=z, verify=False)
         ProcessingLog.addToLog(
@@ -216,20 +235,24 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             str(post.status_code)
         )
         post.raise_for_status()
-
-
+        # feedback on the uploaded datasets as well as the file extensions
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             "Uploaded {}".format(path)
         )
 
-
     def check_extension(self, path):
+        # Due to the wider range of the accepted file types
+        # by QGIS the file extensions are checked and
+        # given a boolean value for further processing if they are
+        # accepted by GIS Cloud
         filename, file_extension = os.path.splitext(path)
-        if file_extension in (".shp", ".mif", ".mid", ".tab", ".kml", ".gpx", ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
+        if file_extension in (".shp", ".mif", ".mid", ".tab", ".kml", ".gpx",
+                              ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
                               ".jpg", ".gif", ".png", ".pdf", ".json", ".geojson"):
             return True
         else:
+            # provides feedback on the rejection of a filetype
             if path:  # i.e. not an empty string
                 ProcessingLog.addToLog(
                     ProcessingLog.LOG_WARNING,
@@ -238,12 +261,15 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             return False
 
     def create_map(self, map_url, base_headers, map_name, bounds):
-
+        # Creates a new map in GIS Cloud if the
+        # user has specified the need for one.
+        # Appends the contentType command to the headers
         headers = {
             "ContentType": "application/json"
         }
         headers.update(base_headers)
-
+        # gathers the SRC bounds of the associated uploaded layers and
+        # converts them into WGS 84 (EPSG:4326)
         map_data = {
             "name": map_name,
             "bounds": {
@@ -256,56 +282,44 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "proj4": "+init=epsg:4326",
             "units": "degree"
             }
-        map_post = requests.post(map_url, headers=base_headers, data=json.dumps(map_data), verify=False)
-
+        # GIS Cloud REST command for generating a new map
+        map_post = requests.post(map_url, headers=base_headers,
+                                 data=json.dumps(map_data), verify=False)
+        # Extracting the newly generated Map ID from the JSON
+        # output for use in the upload_to_map layers REST endpoint
         mid = int(map_post.headers['Location'].split("/")[-1])
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
-            "mid %i" % mid)
-
-        ProcessingLog.addToLog(
-            ProcessingLog.LOG_INFO,
-            map_name + " was successfully uploaded to your account"
-                )
-
+            map_name + " was successfully uploaded to your account")
         return mid
 
-    def bounds(self, input_filenames):
-
-        layers = [
-            dataobjects.getObjectFromUri(path)
-            for path in input_filenames
-        ]
-
-        extent = None
-        for layer in layers:
-            if layer.type() == 0:
-                transform = QgsCoordinateTransform(layer.crs(), QgsCoordinateReferenceSystem('EPSG:4326')) # WGS 84
-                try:
-                    layerExtent = transform.transform(layer.extent())
-                except QgsCsException:
-                    print "exception in transform layer srs"
-                    layerExtent = QgsRectangle(-180, -90, 180, 90)
-                if extent is None:
-                    extent = layerExtent
-                else:
-                    extent.combineExtentWith(layerExtent)
-
-        print layers
+    def bounds(self):
+        # Function for recalculating the bounded extents of the
+        # layers as they are processed. Under construction
+        selected_extent = self.getParameterValue(self.MAP_EXTENT)
+        transform = QgsCoordinateTransform(layer.crs(),
+        QgsCoordinateReferenceSystem('EPSG:4326'))  # WGS 84
+        try:
+            layerExtent = transform.transform(layer.extent())
+        except QgsCsException:
+            print "exception in transform layer srs"
+            layerExtent = QgsRectangle(-180, -90, 180, 90)
+        if extent is None:
+            extent = layerExtent
+        else:
+            extent.combineExtentWith(layerExtent)
         return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
 
-
     def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
+        # Providing the uploaded layers sequentially to the recently made map
+        # Naming the uploaded layer in the map by the basename of the file
+        # Appending the necessary contentType to the REST API post
         basename = os.path.basename(path)
         headers = {
             "ContentType": "application/json"
         }
         headers.update(base_headers)
-
-        ProcessingLog.addToLog(
-            ProcessingLog.LOG_INFO,
-            headers)
-
+        # Providing the base JSON format to upload the layers to the map
         layer_data = {
             "mid":  mid,
             "name": basename,
@@ -314,8 +328,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 "type": "file",
                 "src": "/" + output_filename + "/" + basename,
                 "name": basename
-            })
-        }
-        layers_post = requests.post(layer_url, headers=base_headers, data=json.dumps(layer_data), verify=False)
-
+            })}
+        # The rest API call to upload the layers to the map
+        layers_post = requests.post(layer_url, headers=base_headers,
+                                    data=json.dumps(layer_data), verify=False)
         layers_post.raise_for_status()
