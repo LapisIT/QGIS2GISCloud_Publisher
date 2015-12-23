@@ -36,7 +36,7 @@ __revision__ = '$Format:%H$'
 
 class GISCloudUtils(object):
 
-    GISCloud_character = 'GISCloud_character'
+    GISCloud_character = 'GISCloud_API_KEY'
 
     @staticmethod
     def getIcon():

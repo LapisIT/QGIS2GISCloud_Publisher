@@ -37,8 +37,6 @@ from giscloud_utils import GISCloudUtils
 
 class GISCloudUploadProvider(AlgorithmProvider):
 
-    MY_DUMMY_SETTING = 'MY_DUMMY_SETTING'
-
     def __init__(self):
         AlgorithmProvider.__init__(self)
 
@@ -62,7 +60,8 @@ class GISCloudUploadProvider(AlgorithmProvider):
         ProcessingConfig.addSetting(Setting(
             self.getDescription(),
             GISCloudUtils.GISCloud_character,
-            'Example setting', 'Default value'))
+            'Please enter your GIS Cloud account API', "Fill me in", valuetype=Setting.STRING))
+
 
     def unload(self):
         """Setting should be removed here, so they do not appear anymore

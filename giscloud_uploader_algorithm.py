@@ -37,6 +37,7 @@ from qgis.core import QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsC
 
 from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.parameters import ParameterMultipleInput, ParameterString, ParameterBoolean
+from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
 from processing.tools import dataobjects, system
 
@@ -45,6 +46,7 @@ import zipfile
 import json
 
 from giscloud_utils import GISCloudUtils
+
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """This is an example algorithm that takes a vector layer and
@@ -75,7 +77,6 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         """
         return GISCloudUtils.getIcon()
 
-
     def defineCharacteristics(self):
         """Here we define the inputs and output of the algorithm, along
         with some other properties.
@@ -104,12 +105,6 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         ))
 
         self.addParameter(ParameterString(
-            self.API_KEY,
-            "GISCloud API Key",
-            default="62f961b31cbd0bc067cfa6f31a787826"
-        ))
-
-        self.addParameter(ParameterString(
             self.OUTPUT_FOLDER,
             "GISCloud output folder name",
             default="QGIS upload"
@@ -133,6 +128,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
 
+        api_key = ProcessingConfig.getSetting(GISCloudUtils.GISCloud_character)
+
         input_filenames = filter(
             self.check_extension,
             chain(
@@ -141,7 +138,6 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             )
         )
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
-        api_key = self.getParameterValue(self.API_KEY)
         map_created = str(self.getParameterValue(self.CHOOSE_MAP))
         map_name = self.getParameterValue(self.MAP_NAME)
         rest_endpoint = "https://api.giscloud.com/1/"
