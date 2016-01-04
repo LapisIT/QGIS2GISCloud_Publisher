@@ -36,6 +36,9 @@ from giscloud_utils import GISCloudUtils
 
 
 class GISCloudUploadProvider(AlgorithmProvider):
+    """
+    In this class we set the default processing options.
+    """
 
     def __init__(self):
         AlgorithmProvider.__init__(self)
@@ -49,8 +52,8 @@ class GISCloudUploadProvider(AlgorithmProvider):
             alg.provider = self
 
     def initializeSettings(self):
-        """In this method we add settings needed to configure our
-        provider.
+        """
+        Setting of the GIS Cloud API Key as a core parameter.
 
         Do not forget to call the parent method, since it takes care
         or automatically adding a setting for activating or
@@ -62,9 +65,9 @@ class GISCloudUploadProvider(AlgorithmProvider):
             GISCloudUtils.GISCloud_character,
             'Please enter your GIS Cloud account API', "Fill me in", valuetype=Setting.STRING))
 
-
     def unload(self):
-        """Setting should be removed here, so they do not appear anymore
+        """
+        Setting should be removed here, so they do not appear anymore
         when the plugin is unloaded.
         """
         AlgorithmProvider.unload(self)
@@ -72,7 +75,7 @@ class GISCloudUploadProvider(AlgorithmProvider):
             GISCloudUtils.GISCloud_character)
 
     def getName(self):
-        """This is the name that will appear on the toolbox group.
+        """This is the name that will appear on the toolbox.
 
         It is also used to create the command line name of all the
         algorithms from this provider.
@@ -80,12 +83,14 @@ class GISCloudUploadProvider(AlgorithmProvider):
         return self.getDescription()
 
     def getDescription(self):
-        """This is the provired full name.
         """
-        return "GISCloud Uploader"
+        This is the provided full name.
+        """
+        return "GIS Cloud Uploader"
 
     def getIcon(self):
-        """Get the icon.
+        """
+        Get the icon.
         """
         return GISCloudUtils.getIcon()
 

@@ -1,21 +1,4 @@
 # -*- coding: utf-8 -*-
-from glob import glob
-from itertools import chain
-from qgis.core import (
-    QgsCoordinateTransform, QgsCoordinateReferenceSystem,
-    QgsCsException, QgsRectangle)
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.parameters import (
-    ParameterMultipleInput, ParameterString,
-    ParameterBoolean, ParameterExtent)
-from processing.core.ProcessingConfig import ProcessingConfig
-from processing.core.ProcessingLog import ProcessingLog
-from processing.tools import system
-from GISCloudUpload.giscloud_utils import GISCloudUtils
-import os.path
-import requests
-import zipfile
-import json
 """
 ***************************************************************************
  GISCloudUpload
@@ -36,6 +19,24 @@ import json
  *                                                                         *
  ***************************************************************************
 """
+
+from glob import glob
+from itertools import chain
+from qgis.core import (
+    QgsCoordinateTransform, QgsCoordinateReferenceSystem,
+    QgsCsException, QgsRectangle)
+from processing.core.GeoAlgorithm import GeoAlgorithm
+from processing.core.parameters import (
+    ParameterMultipleInput, ParameterString,
+    ParameterBoolean, ParameterExtent)
+from processing.core.ProcessingConfig import ProcessingConfig
+from processing.core.ProcessingLog import ProcessingLog
+from processing.tools import system
+from GISCloudUpload.giscloud_utils import GISCloudUtils
+import os.path
+import requests
+import zipfile
+import json
 
 __author__ = 'Spatial Vision'
 __date__ = '2015-11-23'
