@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from glob import glob
-import os.path
 from itertools import chain
-
 from qgis.core import (
     QgsCoordinateTransform, QgsCoordinateReferenceSystem,
     QgsCsException, QgsRectangle)
@@ -12,15 +10,14 @@ from processing.core.parameters import (
     ParameterBoolean, ParameterExtent)
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
-from processing.tools import dataobjects, system
-
+from processing.tools import system
+from GISCloudUpload.giscloud_utils import GISCloudUtils
+import os.path
 import requests
 import zipfile
 import json
-
-from giscloud_utils import GISCloudUtils
 """
-/***************************************************************************
+***************************************************************************
  GISCloudUpload
                                  A QGIS plugin
  Uploader to GIs cloud
@@ -37,7 +34,7 @@ from giscloud_utils import GISCloudUtils
  *   the Free Software Foundation; either version 2 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
- ***************************************************************************/
+ ***************************************************************************
 """
 
 __author__ = 'Spatial Vision'
@@ -47,6 +44,7 @@ __copyright__ = '(C) 2015 by Spatial Vision'
 # This will get replaced with a git SHA1 when you do a git archive
 
 __revision__ = '$Format:%H$'
+
 
 class GISCloudUploadAlgorithm(GeoAlgorithm):
     """
@@ -108,14 +106,15 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
 
         self.addParameter(ParameterBoolean(
             self.CHOOSE_MAP,  # determine if you want to upload the files to a new map
-            "Would you like to add the uploaded files to a new map?",
+            "Would you like to add the uploaded files to a new map? \n"
+            "*Leave empty if you do not want to produce a new map with "
+            "your uploaded layers*",
             default=False  # default not to upload to a new map
         ))
 
         self.addParameter(ParameterString(
             self.MAP_NAME,  # specify the map name to upload the files into
-            "GISCloud output map name: Leave blank if you do not "
-            "want to produce a new map with your uploaded layers",
+            "GIS Cloud output map name",
             default="Map Project"  # default map name
         ))
 
@@ -197,7 +196,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         help_data = open(os.path.join(
             os.path.dirname(__file__),
             "doc",
-            "Publishing instructions.html"
+            "Publishing_instructions.html"
         )).read()
         return True, help_data
 
@@ -213,20 +212,20 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # Extracts the basename of the file, collects all
         # associated file type extensions and zips the files for upload
         zip_path = system.getTempFilename("zip")
-        with zipfile.ZipFile(zip_path, "w") as zip_GC:
-            for path_GC in glob(os.path.splitext(path)[0] + ".*"):
+        with zipfile.ZipFile(zip_path, "w") as ziptofm:
+            for pathname in glob(os.path.splitext(path)[0] + ".*"):
                 ProcessingLog.addToLog(
                     ProcessingLog.LOG_INFO,
-                    path_GC
+                    pathname
                 )
-                zip_GC.write(path_GC, os.path.basename(path_GC))
+                ziptofm.write(pathname, os.path.basename(pathname))
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             zip_path
         )
         # read binary and post file with GIS Cloud REST API
-        zip_GC = {'file': open(zip_path, 'rb')}
-        post = requests.post(storage_url, headers=base_headers, files=zip_GC, verify=False)
+        ziptofm = {'file': open(zip_path, 'rb')}
+        post = requests.post(storage_url, headers=base_headers, files=ziptofm, verify=False)
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             str(post.status_code)
@@ -239,11 +238,14 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         )
 
     def check_extension(self, path):
-        # Due to the wider range of the accepted file types
-        # by QGIS the file extensions are checked and
-        # given a boolean value for further processing if they are
-        # accepted by GIS Cloud
-        filename, file_extension = os.path.splitext(path)
+        """
+        Due to the wider range of the accepted file types
+        by QGIS the file extensions are checked and
+        given a boolean value for further processing if they are accepted by GIS Cloud
+        :param path:
+        :return:
+        """
+        file_extension = os.path.splitext(path)
         if file_extension in (".shp", ".mif", ".mid", ".tab", ".kml", ".gpx",
                               ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
                               ".jpg", ".gif", ".png", ".pdf", ".json", ".geojson"):
@@ -258,8 +260,15 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             return False
 
     def create_map(self, map_url, base_headers, map_name, bounds):
-        # Creates a new map in GIS Cloud if the
-        # user has specified the need for one.
+        """
+        Creates a new map in GIS Cloud if the
+        user has specified the need for one.
+        :param map_url:
+        :param base_headers:
+        :param map_name:
+        :param bounds:
+        :return:
+        """
         # Appends the contentType command to the headers
         headers = {
             "ContentType": "application/json"
@@ -291,25 +300,38 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         return mid
 
     def bounds(self):
-        # Function for recalculating the bounded extents of the
-        # layers as they are processed. Under construction
+        """
+        Function for recalculating the bounded extents of the
+        layers as they are processed. Under construction
+        :return:
+        """
+        # Requires refinement for raster manipulation of bounds
+        extent = None
         selected_extent = self.getParameterValue(self.MAP_EXTENT)
-        transform = QgsCoordinateTransform(layer.crs(),
+        transform = QgsCoordinateTransform(selected_extent.crs(),
                                            QgsCoordinateReferenceSystem('EPSG:4326'))  # WGS 84
         try:
-            layerExtent = transform.transform(layer.extent())
+            layerextent = transform.transform(selected_extent.extent())
         except QgsCsException:
             print "exception in transform layer srs"
-            layerExtent = QgsRectangle(-180, -90, 180, 90)
+            layerextent = QgsRectangle(-180, -90, 180, 90)
         if extent is None:
-            extent = layerExtent
+            extent = layerextent
         else:
-            extent.combineExtentWith(layerExtent)
+            extent.combineExtentWith(layerextent)
         return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
 
     def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
-        # Providing the uploaded layers sequentially to the recently made map
-        # Naming the uploaded layer in the map by the basename of the file
+        """
+        Providing the uploaded layers sequentially to the recently made map
+        Naming the uploaded layer in the map by the basename of the file
+        :param mid:
+        :param path:
+        :param output_filename:
+        :param layer_url:
+        :param base_headers:
+        :return:
+        """
         # Appending the necessary contentType to the REST API post
         basename = os.path.basename(path)
         headers = {
