@@ -216,22 +216,10 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         zip_path = system.getTempFilename("zip")
         with zipfile.ZipFile(zip_path, "w") as ziptofm:
             for pathname in glob(os.path.splitext(path)[0] + ".*"):
-                ProcessingLog.addToLog(
-                    ProcessingLog.LOG_INFO,
-                    pathname
-                )
                 ziptofm.write(pathname, os.path.basename(pathname))
-        ProcessingLog.addToLog(
-            ProcessingLog.LOG_INFO,
-            zip_path
-        )
         # read binary and post file with GIS Cloud REST API
         ziptofm = {'file': open(zip_path, 'rb')}
         post = requests.post(storage_url, headers=base_headers, files=ziptofm, verify=False)
-        ProcessingLog.addToLog(
-            ProcessingLog.LOG_INFO,
-            str(post.status_code)
-        )
         post.raise_for_status()
         # feedback on the uploaded datasets as well as the file extensions
         ProcessingLog.addToLog(
@@ -317,7 +305,6 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         yMin = float(selected_extent[2])
         yMax = float(selected_extent[3])
         extent = QgsRectangle(xMin, yMin, xMax, yMax)
-        ProcessingLog.addToLog(ProcessingLog.LOG_INFO, extent.toString())
 
         mapCRS = iface.mapCanvas().mapSettings().destinationCrs()
         transform = QgsCoordinateTransform(

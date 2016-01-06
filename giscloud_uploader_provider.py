@@ -63,7 +63,7 @@ class GISCloudUploadProvider(AlgorithmProvider):
         ProcessingConfig.addSetting(Setting(
             self.getDescription(),
             GISCloudUtils.GISCloud_character,
-            'Please enter your GIS Cloud account API', "Fill me in", valuetype=Setting.STRING))
+            'Please enter your GIS Cloud account API', "Paste API Key here", valuetype=Setting.STRING))
 
     def unload(self):
         """
