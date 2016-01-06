@@ -22,6 +22,7 @@
 
 from glob import glob
 from itertools import chain
+from qgis.utils import iface
 from qgis.core import (
     QgsCoordinateTransform, QgsCoordinateReferenceSystem,
     QgsCsException, QgsRectangle)
@@ -246,7 +247,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         :param path:
         :return:
         """
-        file_extension = os.path.splitext(path)
+        filename, file_extension = os.path.splitext(path)
         if file_extension in (".shp", ".mif", ".mid", ".tab", ".kml", ".gpx",
                               ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
                               ".jpg", ".gif", ".png", ".pdf", ".json", ".geojson"):
@@ -267,7 +268,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         :param map_url:
         :param base_headers:
         :param map_name:
-        :param bounds:
+        :param bounds: A QgsRectange object
         :return:
         """
         # Appends the contentType command to the headers
@@ -280,14 +281,16 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         map_data = {
             "name": map_name,
             "bounds": {
-                "x_min": bounds[0],
-                "x_max": bounds[1],
-                "y_min": bounds[2],
-                "y_max": bounds[3]
+                "x_min": bounds.xMinimum(),
+                "x_max": bounds.xMaximum(),
+                "y_min": bounds.yMinimum(),
+                "y_max": bounds.yMaximum(),
             },
             "description": "Description",
             "proj4": "+init=epsg:4326",
-            "units": "degree"
+            "units": "foot",
+            "epsg": 4326,
+            "copyright": "Spatial Vision"
             }
         # GIS Cloud REST command for generating a new map
         map_post = requests.post(map_url, headers=base_headers,
@@ -307,20 +310,32 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         :return:
         """
         # Requires refinement for raster manipulation of bounds
-        extent = None
-        selected_extent = self.getParameterValue(self.MAP_EXTENT)
-        transform = QgsCoordinateTransform(selected_extent.crs(),
-                                           QgsCoordinateReferenceSystem('EPSG:4326'))  # WGS 84
+        selected_extent = unicode(self.getParameterValue(self.MAP_EXTENT)).split(',')
+
+        xMin = float(selected_extent[0])
+        xMax = float(selected_extent[1])
+        yMin = float(selected_extent[2])
+        yMax = float(selected_extent[3])
+        extent = QgsRectangle(xMin, yMin, xMax, yMax)
+        ProcessingLog.addToLog(ProcessingLog.LOG_INFO, extent.toString())
+
+        mapCRS = iface.mapCanvas().mapSettings().destinationCrs()
+        transform = QgsCoordinateTransform(
+            mapCRS,
+            # QgsCoordinateReferenceSystem('EPSG:4326')  # WGS 84
+            QgsCoordinateReferenceSystem('EPSG:3785')  # Popular vis mercator
+        )
+
         try:
-            layerextent = transform.transform(selected_extent.extent())
+            layer_extent = transform.transform(extent)
         except QgsCsException:
-            print "exception in transform layer srs"
-            layerextent = QgsRectangle(-180, -90, 180, 90)
-        if extent is None:
-            extent = layerextent
-        else:
-            extent.combineExtentWith(layerextent)
-        return (extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum())
+            ProcessingLog.addToLog(ProcessingLog.LOG_WARNING,
+                                   "exception in transform layer srs")
+            layer_extent = QgsRectangle(-180, -90, 180, 90)
+
+        ProcessingLog.addToLog(ProcessingLog.LOG_INFO, layer_extent.toString())
+
+        return layer_extent
 
     def add_layer_to_map(self, mid, path, output_filename, layer_url, base_headers):
         """
@@ -330,8 +345,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         :param path:
         :param output_filename:
         :param layer_url:
-        :param base_headers:
-        :return:
+        :param base_headers:        :return:
+
         """
         # Appending the necessary contentType to the REST API post
         basename = os.path.basename(path)
