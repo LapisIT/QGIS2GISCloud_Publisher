@@ -14,7 +14,7 @@ version=0.1
 author=Spatial Vision
 email=michael.king@spatialvision.com.au
 
-about=Gis Cloud Uploader
+about=GIS Cloud Uploader
 
 tracker=http://spatialvision.com.au
 repository=http://spatialvision.com.au

@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+        "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>GIS Cloud Publisher</title>
+</head>
+<body>
+<h1>GIS Cloud uploader for QGIS</h1>
+<p>This tool permits the upload of vector and raster datasets into a GIS Cloud 
+account using an account API key. Layers can be produced and manipulated locally 
+in a QGIS workspace and reproduced directly into the file manager of the selected GIS Cloud
+account. 
+</p>
+
+<h2>Input parameters</h2>
+
+<p>Uploadable file types are limited to the extensions accepted by GIS Cloud:</p> 
+<p><b>Vector:</b> .shp, .mif, .mid, .tab, .kml, .gpx, .tif, .tiff, .json, .geojson</p>
+<p><b>Raster:</b> .sid .tif, .tiff, .ecw, .img, .jp2, .jpg, .gif, .png, .pdf</p>
+<p>*upload of one or more in any combination of file formats is permitted.  
+The size of the upload is restricted by the storage space available in the GIS Cloud account.</p>
+
+<h3>API Key</h3>
+
+<p>This tool requires the user to enter a GIS Cloud API Key as an input parameter. 
+In order to generate an API Key log into your GIS Cloud account, click in the top 
+right hand corner drop down menu Hi*Your Name*>>My Account. In the pop up box navigate to the far 
+right tab API Access>> Add Key. This will produce a new API key, copy this key and keep it safe.</p>
+
+<p>To enter it into QGIS click on the tab Processing>>Options. Expand Providers>>
+GISCloud Uploader. Ensure the activate box is ticked, double click on the space below and 
+paste in the GIS Cloud API Key. You will only need to do this once.</p>
+
+<h3>Vector Layers</h3>
+
+<p>Click on the button with the three dots to produce a pop out menu from which 
+to choose the vector layers you wish to upload. This will allow you to select any or all of the 
+vector layers which are in your current project Layers Panel (limited to the size of 
+your GIS Cloud storage limit). The name of the layer will be transferred directly to the 
+upload folder.</p>
+
+<h3>Raster Layers</h3>
+
+<p>Click on the button with the three dots to produce a pop out menu from which 
+to choose the raster layers you wish to upload. This will allow you to select any or all of the 
+raster layers which are in your current project Layers Panel (limited to the size of 
+your GIS Cloud storage limit). The name of the layer will be transferred directly to the 
+upload folder.</p>
+
+<h3>GIS Cloud folder name</h3>
+
+<p>Enter a name for the folder the layers will be uploaded into. If a name isn't entered the
+ default name will be QGIS upload - if this folder already exists or if the name entered is
+ the same as one which exists the new layers will be appended into that folder.</p>
+
+<h3>Check-box for optional map creation</h3>
+
+<p>If you would like to create a new map project in which to enter the uploaded layers
+check this tick box.</p>
+	
+<h3>GIS Cloud project map name</h3>
+
+<p>This will be the name for the new map/project in which the layers will be uploaded.</p>
+	
+<h3>Upload map extent</h3>
+
+<p>Provide the map extent for the layers you are uploading.</p>
+
+<h3>Processing output</h3>
+
+<p>To review the output messages from the process click on the speech bubble in the bottom 
+right of the QGIS window and navigate to the tab 'Processing'. This will provide a description of the success 
+or failure of folder and map creation as well as file types uploaded.</p>
+
+</body>
+</html>
