@@ -7,9 +7,9 @@
 # This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Gis Cloud Upload
+name=GIS Cloud Upload
 qgisMinimumVersion=2.0
-description=Uploader to GIs cloud
+description=Uploader to GIS cloud
 version=0.1
 author=Spatial Vision
 email=michael.king@spatialvision.com.au
