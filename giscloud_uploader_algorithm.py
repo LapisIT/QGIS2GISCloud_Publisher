@@ -268,16 +268,15 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # converts them into WGS 84 (EPSG:4326)
         map_data = {
             "name": map_name,
-            "bounds": {
-                "x_min": bounds.xMinimum(),
-                "x_max": bounds.xMaximum(),
-                "y_min": bounds.yMinimum(),
-                "y_max": bounds.yMaximum(),
-            },
+            "bounds": json.dumps({
+                "xmin": bounds.xMinimum(),
+                "xmax": bounds.xMaximum(),
+                "ymin": bounds.yMinimum(),
+                "ymax": bounds.yMaximum(),
+            }),
             "description": "Description",
-            "proj4": "+init=epsg:4326",
-            "units": "foot",
-            "epsg": 4326,
+            "proj4": "+init=epsg:900913",
+            "epsg": 900913,
             "copyright": "Spatial Vision"
             }
         # GIS Cloud REST command for generating a new map
@@ -309,8 +308,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         mapCRS = iface.mapCanvas().mapSettings().destinationCrs()
         transform = QgsCoordinateTransform(
             mapCRS,
-            # QgsCoordinateReferenceSystem('EPSG:4326')  # WGS 84
-            QgsCoordinateReferenceSystem('EPSG:3785')  # Popular vis mercator
+            QgsCoordinateReferenceSystem('EPSG:3785')  # WGS84
+            # QgsCoordinateReferenceSystem('EPSG:3785')  # Popular vis mercator
         )
 
         try:
