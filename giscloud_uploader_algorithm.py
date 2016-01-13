@@ -22,6 +22,8 @@
 
 from glob import glob
 from itertools import chain
+from functools import partial
+
 from qgis.utils import iface
 from qgis.core import (
     QgsCoordinateTransform, QgsCoordinateReferenceSystem,
@@ -125,7 +127,12 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         ))
 
     def processAlgorithm(self, progress):
-        """Here is where the processing itself takes place."""
+        """
+        Here is where the processing itself takes place.
+
+        :param progress: Interface to the processing window
+        :type progress: processing.gui.AlgorithmDialog.AlgorithmDialog
+        """
 
         # The first thing to do is retrieve the values of the parameters
         # entered by the user
@@ -133,12 +140,16 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         api_key = ProcessingConfig.getSetting(GISCloudUtils.GISCloud_character)
 
         input_filenames = filter(
-            self.check_extension,
+            partial(self.check_extension, progress=progress),  # Aliases a function to pre-define an argument
             chain(  # producing a list from the selected layers to upload
-                (self.getParameterValue(self.INPUT_LAYER_VECTOR) or "").split(","),
-                (self.getParameterValue(self.INPUT_LAYER_RASTER) or "").split(",")
+                (self.getParameterValue(self.INPUT_LAYER_VECTOR) or "").split(";"),
+                (self.getParameterValue(self.INPUT_LAYER_RASTER) or "").split(";")
             )
         )
+
+        progress.setInfo("Gathering layers")
+        progress.setPercentage(0)
+
         output_filename = self.getParameterValue(self.OUTPUT_FOLDER)
         map_created = str(self.getParameterValue(self.CHOOSE_MAP))
         map_name = self.getParameterValue(self.MAP_NAME)
@@ -165,6 +176,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # create a new map with the upload
         if map_created == 'True':
             bounds = self.bounds()  # seeks to determine the extent of the map
+            progress.setInfo("Creating empty map")
             mid = self.create_map(map_url, base_headers, map_name, bounds)  # Map ID
         else:
             # provides feedback on the options taken
@@ -176,11 +188,16 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             mid = None
         # sends each of the selected files to be individually processed
         # and entered into the giscloud file manager folder
-        for path in input_filenames:
+        progress.setInfo("Uploading files")
+        for i, path in enumerate(input_filenames, 1):
+            percent = float(i) / (len(input_filenames) + 1) * 100
+            progress.setPercentage(int(percent))
+            progress.setInfo("Uploading " + path)
             self.upload_to_filemanager(storage_url, base_headers, path)
             if mid:
                 self.add_layer_to_map(mid, path, output_filename, layer_url, base_headers)
         # validation and information feedback on the success of the upload process
+        progress.setPercentage(100)
         ProcessingLog.addToLog(
             ProcessingLog.LOG_INFO,
             "Uploaded all valid datasets to the GIS Cloud folder " + output_filename
@@ -227,20 +244,25 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
             "Uploaded {}".format(path)
         )
 
-    def check_extension(self, path):
+    def check_extension(self, path, progress):
         """
         Due to the wider range of the accepted file types
         by QGIS the file extensions are checked and
         given a boolean value for further processing if they are accepted by GIS Cloud
-        :param path:
-        :return:
+
+        :param path: Path to check if valid dataset
+        :type path: str
+        :param progress: Interface to the processing window
+        :type progress: processing.gui.AlgorithmDialog.AlgorithmDialog
+        :rtype: bool
         """
         filename, file_extension = os.path.splitext(path)
         if file_extension in (".shp", ".mif", ".mid", ".tab", ".kml", ".gpx",
                               ".tif", ".tiff", ".sid", ".ecw", ".img", ".jp2",
-                              ".jpg", ".gif", ".png", ".pdf", ".json", ".geojson"):
+                              ".jpg", ".png", ".pdf", ".json", ".geojson"):
             return True
         else:
+            progress.error(path + " is not compatible with GISCloud.")
             # provides feedback on the rejection of a filetype
             if path:  # i.e. not an empty string
                 ProcessingLog.addToLog(
