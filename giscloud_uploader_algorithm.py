@@ -298,8 +298,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
                 "ymax": bounds.yMaximum(),
             }),
             "description": "Description",
-            "proj4": "+init=epsg:900913",
-            "epsg": 900913,
+            "proj4": "+init=epsg:4326",
+            "epsg": 4326,
             "copyright": "Spatial Vision"
             }
         # GIS Cloud REST command for generating a new map
@@ -331,7 +331,7 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         mapCRS = iface.mapCanvas().mapSettings().destinationCrs()
         transform = QgsCoordinateTransform(
             mapCRS,
-            QgsCoordinateReferenceSystem('EPSG:3785')  # WGS84
+            QgsCoordinateReferenceSystem('EPSG:4326')  # WGS84
             # QgsCoordinateReferenceSystem('EPSG:3785')  # Popular vis mercator
         )
 
