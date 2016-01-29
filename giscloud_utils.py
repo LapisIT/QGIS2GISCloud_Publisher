@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
+
 """
 /***************************************************************************
- GISCloudUpload
+ DifferentialPrivacy
                                  A QGIS plugin
- Uploader to GIs cloud
+ Methods for anonymizing data for public distribution
                               -------------------
-        begin                : 2015-11-23
-        copyright            : (C) 2015 by Spatial Vision
+        begin                : 2015-11-02
+        copyright            : (C) 2015 by Michael King
         email                : michael.king@spatialvision.com.au
  ***************************************************************************/
 
@@ -18,21 +19,29 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
- This script initializes the plugin, making it known to QGIS.
 """
 
-__author__ = 'Spatial Vision'
-__date__ = '2015-11-23'
-__copyright__ = '(C) 2015 by Spatial Vision'
+__author__ = 'Michael King'
+__date__ = '2015-11-02'
+__copyright__ = '(C) 2015 by Michael King'
+
+import os.path
+
+from PyQt4.QtGui import QIcon
+
+# This will get replaced with a git SHA1 when you do a git archive
+
+__revision__ = '$Format:%H$'
 
 
-# noinspection PyPep8Naming
-def classFactory(iface):  # pylint: disable=invalid-name
-    """Load GISCloudUpload class from file GISCloudUpload.
+class GISCloudUtils(object):
 
-    :param iface: A QGIS interface instance.
-    :type iface: QgsInterface
-    """
-    #
-    from .giscloud_uploader import GISCloudUploadPlugin
-    return GISCloudUploadPlugin()
+    GISCloud_character = 'GISCloud_API_KEY'
+
+    @staticmethod
+    def getIcon():
+        return QIcon(os.path.join(
+            os.path.dirname(__file__),
+            'icons',
+            'cloudupload.png'
+        ))

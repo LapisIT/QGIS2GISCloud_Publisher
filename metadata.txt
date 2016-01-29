@@ -1,45 +1,69 @@
-; the next section is mandatory
+# This file contains metadata for your plugin. Since 
+# version 2.0 of QGIS this is the proper way to supply 
+# information about a plugin. The old method of 
+# embedding metadata in __init__.py will 
+# is no longer supported since version 2.0.
+
+# This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=HelloWorld
-email=me@example.com
-author=Just Me
+name=GIS Cloud Upload
 qgisMinimumVersion=2.0
-description=This is an example plugin for greeting the world.
-    Multiline is allowed:
-    lines starting with spaces belong to the same
-    field, in this case to the "description" field.
-    HTML formatting is not allowed.
-about=This paragraph can contain a detailed description
-    of the plugin. Multiline is allowed, HTML is not.
-version=version 1.2
-; end of mandatory metadata
+description=Uploader to GIS Cloud
+version=0.1
+author=Spatial Vision
+email=michael.king@spatialvision.com.au
 
-; start of optional metadata
-category=Raster
-changelog=The changelog lists the plugin versions
-    and their changes as in the example below:
-    1.0 - First stable release
-    0.9 - All features implemented
-    0.8 - First testing release
+about=GIS Cloud Uploader
+	*This tool is to be used in conjunction with a GIS Cloud account* 
 
-; Tags are in comma separated value format, spaces are allowed within the
-; tag name.
-; Tags should be in English language. Please also check for existing tags and
-; synonyms before creating a new one.
-tags=wkt,raster,hello world
+	API key - 
+	This tool requires the user to enter a GIS Cloud API Key as an input parameter. 
+	In order to generate an API Key log into your GIS Cloud account, click in the top 
+	right hand corner drop down menu Hi*Your Name*>>My Account. In the pop up box 
+	navigate to the far right tab API Access>> Add Key. This will produce a new API key, 
+	copy this key and keep it safe.
 
-; these metadata can be empty, they will eventually become mandatory.
-homepage=http://www.itopen.it
-tracker=http://bugs.itopen.it
-repository=http://www.itopen.it/repo
-icon=icon.png
+	To enter it into QGIS install this plugin and  click on the tab Processing>>Options. 
+	Expand Providers>> GISCloud Uploader. Ensure the activate box is ticked, double click 
+	on the space below and paste in the GIS Cloud API Key - press enter. 
 
-; experimental flag (applies to the single version)
+	You will only need to do this once.
+
+	Requests - 
+	This plugin also requires the python requests library (responsible for sending HTML parameters
+	 to GIS Cloud) to be installed locally.
+	 
+	*If you don't already have pip installed* 
+	Navigate to https://bootstrap.pypa.io/get-pip.py >> right click, save as, get-pip.py in your temp file
+	In the search programs bar in your Windows start menu (bottom left) Type 'OSGeo4W Shell'. 
+	On the link right click and click 'Run as Administrator' In the Command Line module paste sequentially: 
+		cd C:\Temp
+		python get-pip.py
+		pip install requests
+	
+		Image Acknowledgement
+	cloud up by Sherrinford from the Noun Project
+	https://thenounproject.com/search/?q=cloud+up&i=62754 
+	
+tracker=http://spatialvision.com.au
+repository=http://spatialvision.com.au
+# End of mandatory metadata
+
+# Recommended items:
+
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=webservice
+
+homepage=http://spatialvision.com.au
+category=Analysis
+icon=icons/cloudupload.png
+# experimental flag
 experimental=True
 
-; deprecated flag (applies to the whole plugin and not only to the uploaded version)
+# deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
 
-; if empty, it will be automatically set to major version + .99
-qgisMaximumVersion=2.0
