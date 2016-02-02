@@ -37,7 +37,7 @@ from processing.core.ProcessingLog import ProcessingLog
 from processing.tools import system, dataobjects
 from GISCloudUpload.giscloud_utils import GISCloudUtils
 import os.path
-import requests
+from modules import requests #sadly, we can't guarantee that requests is installed in your qgis machine.
 import zipfile
 import json
 
