@@ -23,6 +23,7 @@
 from glob import glob
 from itertools import chain
 from functools import partial
+import re
 
 from qgis.utils import iface
 from qgis.core import (
@@ -35,7 +36,7 @@ from processing.core.parameters import (
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.ProcessingLog import ProcessingLog
 from processing.tools import system, dataobjects
-from GISCloudUpload.giscloud_utils import GISCloudUtils
+from giscloud_utils import GISCloudUtils
 import os.path
 from modules import requests #sadly, we can't guarantee that requests is installed in your qgis machine.
 import zipfile
@@ -138,6 +139,9 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         # entered by the user
         # the api key is derived from the optional settings value entered
         api_key = ProcessingConfig.getSetting(GISCloudUtils.GISCloud_character)
+        if not re.match("^[a-f0-9]{32}$", api_key):
+            progress.setInfo("Please set the API Key for the GISCloud plugin", error=True)
+            raise ValueError("No API Key set for the GISCloud uploader")
 
         input_filenames = filter(
             partial(self.check_extension, progress=progress),  # Aliases a function to pre-define an argument
@@ -382,8 +386,8 @@ class GISCloudUploadAlgorithm(GeoAlgorithm):
         :param path:
         :param output_filename:
         :param layer_url:
-        :param base_headers:        :return:
-
+        :param base_headers:
+        :return:
         """
         # Appending the necessary contentType to the REST API post
         basename = os.path.basename(path)
