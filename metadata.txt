@@ -10,7 +10,7 @@
 name=GIS Cloud Upload
 qgisMinimumVersion=2.0
 description=Uploader to GIS Cloud
-version=0.1
+version=1.1.0
 author=Spatial Vision
 email=michael.king@spatialvision.com.au
 
@@ -29,18 +29,6 @@ about=GIS Cloud Uploader
 	on the space below and paste in the GIS Cloud API Key - press enter. 
 
 	You will only need to do this once.
-
-	Requests - 
-	This plugin also requires the python requests library (responsible for sending HTML parameters
-	 to GIS Cloud) to be installed locally.
-	 
-	*If you don't already have pip installed* 
-	Navigate to https://bootstrap.pypa.io/get-pip.py >> right click, save as, get-pip.py in your temp file
-	In the search programs bar in your Windows start menu (bottom left) Type 'OSGeo4W Shell'. 
-	On the link right click and click 'Run as Administrator' In the Command Line module paste sequentially: 
-		cd C:\Temp
-		python get-pip.py
-		pip install requests
 	
 		Image Acknowledgement
 	cloud up by Sherrinford from the Noun Project
