@@ -34,8 +34,8 @@ about=GIS Cloud Uploader
 	cloud up by Sherrinford from the Noun Project
 	https://thenounproject.com/search/?q=cloud+up&i=62754 
 	
-tracker=http://spatialvision.com.au
-repository=http://spatialvision.com.au
+tracker=https://github.com/SpatialVision/QGIS2GISCloud_Publisher/issues
+repository=https://github.com/SpatialVision/QGIS2GISCloud_Publisher
 # End of mandatory metadata
 
 # Recommended items:
